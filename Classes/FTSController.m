@@ -10,7 +10,7 @@
 #import "FTSItem.h"
 #import "sqlite3.h"
 #import "FTSQueryItem.h"
-#import "Porter.h"
+#import "FTSPorter.h"
 #import "FTSSearchParameters.h"
 #import "FTSBufsContainer.h"
 
@@ -59,7 +59,7 @@ static sqlite3_stmt * stmt = nil;
                                                          ignoreYear:NO];
     self.parameters = [[FTSSearchParameters alloc] initSearchParametersWithBufs:self.bufs
                                                                         inputed:@""];
-    self.stemmer = [[Porter alloc] initStemmer];
+    self.stemmer = [[FTSPorter alloc] initStemmer];
     NSArray * buf = [self makeDicts];
     self.topicDict = buf[0];
     self.topicDescDict = buf[1];

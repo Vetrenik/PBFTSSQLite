@@ -14,14 +14,14 @@ NS_ASSUME_NONNULL_BEGIN
 @class FTSQueryItem;
 @class FTSBufsContainer;
 @class FTSSearchParameters;
-@class Porter;
+@class FTSPorter;
 
 @interface FTSController : NSObject
 
 @property (nonatomic, strong) NSString *databasePath;
 @property (nonatomic, strong) FTSBufsContainer * bufs;
 @property (nonatomic, strong) FTSSearchParameters * parameters;
-@property (nonatomic, strong) Porter * stemmer;
+@property (nonatomic, strong) FTSPorter * stemmer;
 @property (nonatomic, strong) NSDictionary * topicDict;
 @property (nonatomic, strong) NSDictionary * topicDescDict;
 
