@@ -1,6 +1,6 @@
 //
-//  Porter.h
-//  Porter
+//  FTSPorter.h
+//  FTSPorter
 //
 //  Created by Anton on 10/30/18.
 //  Copyright © 2018 Anton. All rights reserved.
