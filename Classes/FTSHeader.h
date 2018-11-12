@@ -1,8 +1,9 @@
-#import "FTSBufsContainer.h"
-#import "FTSItem.h"
-#import "FTSController.h"
-#import "FTSQueryItem.h"
-#import "FTSSearchParameters.h"
+#include "FTSSearchParameters.h"
+#include "FTSBufsContainer.h"
+#include "FTSItem.h"
+#include "FTSController.h"
+#include "FTSQueryItem.h"
+
 
 @interface FTSHeader : NSObject
 
