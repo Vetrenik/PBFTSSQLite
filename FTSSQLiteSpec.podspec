@@ -16,7 +16,7 @@ Pod::Spec.new do |s|
   #
 
   s.name         = "FTSSQLiteSpec"
-  s.version      = "0.0.6"
+  s.version      = "0.0.7"
   s.summary      = "SQLite based FullTextSearch module for Compass Plus's PocketBank"
   # This description is used to generate tags and improve search results.
   #   * Think: What does it do? Why did you write it? What is the focus?
@@ -91,7 +91,7 @@ Pod::Spec.new do |s|
   s.source_files  = "Classes", "Classes/**/*.{h,m}"
   s.exclude_files = "Classes/Exclude"
 
-  s.public_header_files = "Classes/FTSHeader.h"
+  s.public_header_files = "Classes/**/*.h"
 
 
   # ――― Resources ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― #
