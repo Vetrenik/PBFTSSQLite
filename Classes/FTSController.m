@@ -223,7 +223,7 @@ static sqlite3_stmt * stmt = nil;
                                                                         inputed:sString];
     
     self.parameters.query = [[self.stemmer stemSentenceWitrhString:self.parameters.query] lowercaseString];
-     
+    
     NSArray * buf = [self.parameters.query componentsSeparatedByString:@" "];
     NSString * buf1 = @"(";
     
@@ -240,11 +240,11 @@ static sqlite3_stmt * stmt = nil;
     } else {
         buf1 = [buf objectAtIndex:0];
     }
-
+    
     
     FTSQueryItem * qItem = [[FTSQueryItem alloc] initWithDesc:buf1
                                                    firstValue:[NSString stringWithFormat:@"%015.2f", self.parameters.first_value]
-                                                  secondValue:[NSString stringWithFormat:@"%015.2f", self.parameters.second_value]
+                                                  secondValue:[[NSString stringWithFormat:@"%015.2f", self.parameters.second_value] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]]
                                                     firstDate:[self dateReformatWithDate:self.parameters.first_date]
                                                    secondDate:[self dateReformatWithDate:self.parameters.first_date]
                                                      currency:self.parameters.currency];
@@ -306,7 +306,7 @@ static sqlite3_stmt * stmt = nil;
     BOOL hasSecondDate =![query.second_date isEqualToString:@""];
     BOOL hasDate = hasFirstDate&&hasSecondDate;
     BOOL hasFirstValue = ![query.first_value isEqualToString:[NSString stringWithFormat:@"%015.2f", 0.0f]];
-    BOOL hasSecondValue = ![query.second_date isEqualToString:@"inf"];
+    BOOL hasSecondValue = ![query.second_value isEqualToString:@"inf"];
     BOOL hasValue = hasFirstValue&&hasSecondValue;
     
     if (!hasSecondValue) query.second_value = @"999999999999999";
