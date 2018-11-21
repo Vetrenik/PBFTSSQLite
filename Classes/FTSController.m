@@ -228,17 +228,21 @@ static sqlite3_stmt * stmt = nil;
     NSString * buf1 = @"(";
     
     if ([buf count] > 1) {
-        buf1 = [NSString stringWithFormat:@"(%@", [buf objectAtIndex:0]];
+        buf1 = [NSString stringWithFormat:@"(%@*", [buf objectAtIndex:0]];
         for (int i = 1; i < [buf count]; i++) {
             if (i != [buf count]-1) {
-                buf1 = [NSString stringWithFormat:@"%@ OR %@", buf1, [buf objectAtIndex:i]];
+                buf1 = [NSString stringWithFormat:@"%@ OR %@*", buf1, [buf objectAtIndex:i]];
             } else {
-                buf1 = [NSString stringWithFormat:@"%@ OR %@)", buf1, [buf objectAtIndex:i]];
+                buf1 = [NSString stringWithFormat:@"%@ OR %@*)", buf1, [buf objectAtIndex:i]];
             }
             
         }
     } else {
-        buf1 = [buf objectAtIndex:0];
+        if ([[buf objectAtIndex:0] length] > 0) {
+            buf1 = [NSString stringWithFormat:@"%@*", [buf objectAtIndex:0]];
+        } else {
+            buf1 =[buf objectAtIndex:0];
+        }
     }
     
     
