@@ -191,8 +191,15 @@ static sqlite3_stmt * stmt = nil;
     NSString * object= @"";
     
     if ([item.object conformsToProtocol:@protocol(NSCoding)]) {
-        NSData * objectData = [NSKeyedArchiver archivedDataWithRootObject:item.object];
-        object = [objectData base64EncodedStringWithOptions:0];
+        if (@available(iOS 11.0, *)) {
+            NSData * objectData = [NSKeyedArchiver archivedDataWithRootObject:item.object
+                                                        requiringSecureCoding:YES
+                                                                        error:nil];
+            object = [objectData base64EncodedStringWithOptions:0];
+        } else {
+            NSData * objectData = [NSKeyedArchiver archivedDataWithRootObject:item.object];
+            object = [objectData base64EncodedStringWithOptions:0];
+        }
     } else {
         NSLog(@"Error on indexing object of class %@ with type: %@ with id: %@, \n Object doesn't conforms to protocol: NSCoding", NSStringFromClass([item.object class]),item.type, item.ID);
         @throw NSInternalInconsistencyException;
@@ -393,7 +400,15 @@ static sqlite3_stmt * stmt = nil;
                                                                       (const char *) sqlite3_column_text(stmt, 6)]
                                                              options:0 ];
                 
-                id retObj = [NSKeyedUnarchiver unarchiveObjectWithData:object];
+                id retObj;
+                
+                if (@available(iOS 11.0, *)) {
+                    retObj = [NSKeyedUnarchiver unarchivedObjectOfClass:[NSObject class]
+                                                               fromData:object
+                                                                  error:nil];
+                } else {
+                    retObj = [NSKeyedUnarchiver unarchiveObjectWithData:object];
+                }
                 FTSItem * item;
                 item = [[FTSItem alloc] initItemWithType:type
                                                       ID:ID
