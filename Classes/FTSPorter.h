@@ -31,7 +31,7 @@
 
 -(NSString *) stemWordWithString:(NSString *)word;
 
--(NSString *) stemSentenceWitrhString:(NSString *)sentence;
+-(NSString *) stemSentenceWithString:(NSString *)sentence;
 
 -(NSString *) replaceFirstMatchWithRegexp:(NSRegularExpression *)reg
                                  inString:(NSString *)inStr

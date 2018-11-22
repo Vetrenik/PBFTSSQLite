@@ -38,7 +38,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 -(BOOL) indexRecordsWithArrayOfItems:(NSArray *)iArray;
 
--(NSArray<FTSItem *> *) searchWitrhQueryString:(NSString *)sString;
+-(NSArray<FTSItem *> *) searchWithQueryString:(NSString *)sString;
 
 @end
 

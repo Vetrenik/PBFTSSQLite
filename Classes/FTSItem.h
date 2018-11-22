@@ -23,14 +23,16 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, assign) float value;
 @property (nonatomic, strong) NSDate * date ;
 @property (nonatomic, strong) NSString * currency;
+@property (nonatomic, strong) id object;
 
--(instancetype) initItemWtihype:(NSString *)type
+-(instancetype) initItemWithType:(NSString *)type
                              ID:(NSString *)ID
                          topics:(NSArray<NSString *> *)topicList
                            desc:(NSString *)desc
                           value:(float)value
                            date:(NSDate *)date
-                       currency:(NSString *)currency;
+                       currency:(NSString *)currency
+                          object:(id)object;
 
 @end
 

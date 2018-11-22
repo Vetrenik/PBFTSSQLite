@@ -10,13 +10,14 @@
 
 @implementation FTSItem
 
--(instancetype) initItemWtihype:(NSString *)type
+-(instancetype) initItemWithType:(NSString *)type
                              ID:(NSString *)ID
                          topics:(NSArray<NSString *> *)topicList
                            desc:(NSString *)desc
                           value:(float)value
                            date:(NSDate *)date
-                       currency:(NSString *)currency {
+                       currency:(NSString *)currency
+                         object:(id)object{
     if (self = [super init]) {
         self.type = type;
         self.ID = ID;
@@ -25,6 +26,7 @@
         self.value = value;
         self.date = date;
         self.currency = currency;
+        self.object = object;
     }
     return self;
 }

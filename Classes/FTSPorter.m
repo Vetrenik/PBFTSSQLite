@@ -147,7 +147,7 @@
     return word;
 }
 
-- (NSString *) stemSentenceWitrhString:(NSString *)sentence {
+- (NSString *) stemSentenceWithString:(NSString *)sentence {
     NSString *res = @"";
     NSArray * wordArr = [sentence componentsSeparatedByString:@" "];
     

@@ -109,7 +109,7 @@ static sqlite3_stmt * stmt = nil;
         
         if (sqlite3_open([self.databasePath UTF8String], &searchdb) == SQLITE_OK) {
             char * errMsg;
-            const char * sqlSt = "CREATE VIRTUAL TABLE  search USING fts5(type, id, desc, value, date, currency, tokenize = \'porter ascii\');";
+            const char * sqlSt = "CREATE VIRTUAL TABLE  search USING fts5(type, id, desc, value, date, currency, object UNINDEXED, tokenize = \'porter ascii\');";
             
             if (sqlite3_exec(searchdb, sqlSt, NULL, NULL, &errMsg) == SQLITE_OK) {
                 state = YES;
@@ -168,7 +168,7 @@ static sqlite3_stmt * stmt = nil;
     
     
     //stemming of the item's description
-    item.desc = [self.stemmer stemSentenceWitrhString:item.desc];
+    item.desc = [self.stemmer stemSentenceWithString:item.desc];
     
     //reformating the item's date from dd/MM/yyyy mm:HH to yyyyMMddHHmm format
     NSString * date = [self dateReformatWithTrueDate:item.date];
@@ -188,8 +188,22 @@ static sqlite3_stmt * stmt = nil;
     
     item.desc = [item.desc lowercaseString];
     
+    NSString * object= @"";
+    
+    if ([item.object conformsToProtocol:@protocol(NSCoding)]) {
+        NSData * objectData = [NSKeyedArchiver archivedDataWithRootObject:item.object
+                                                    requiringSecureCoding:NO
+                                                                    error:nil];
+        object = [objectData base64EncodedStringWithOptions:0];
+    } else {
+        NSLog(@"Error on indexing object of type: %@ witrh id: %@, \n Object doesn't conforms to protocol: NSCoding", item.type, item.ID);
+        @throw NSInternalInconsistencyException;
+    }
+    
+    
+    
     NSString * value =  [NSString stringWithFormat:@"%015.2f", item.value];
-    NSString * sqlSt = [NSString stringWithFormat:@"INSERT OR REPLACE INTO search (rowid, type, id, desc, value, date, currency) values ((select rowid from search where id = \'%@\' and type = \'%@\'),\"%@\", \"%@\", \"%@\", \"%@\", \"%@\", \"%@\")",item.ID, item.type, item.type, item.ID, item.desc, value, date, item.currency];
+    NSString * sqlSt = [NSString stringWithFormat:@"INSERT OR REPLACE INTO search (rowid, type, id, desc, value, date, currency, object) values ((select rowid from search where id = \'%@\' and type = \'%@\'),\"%@\", \"%@\", \"%@\", \"%@\", \"%@\", \"%@\", \"%@\")",item.ID, item.type, item.type, item.ID, item.desc, value, date, item.currency, object];
     const char * sqlInsert = [sqlSt UTF8String];
     const char * errMsg;
     
@@ -218,11 +232,11 @@ static sqlite3_stmt * stmt = nil;
     return state;
 }
 
--(NSArray<FTSItem *> *) searchWitrhQueryString:(NSString *)sString {
+-(NSArray<FTSItem *> *) searchWithQueryString:(NSString *)sString {
     self.parameters = [[FTSSearchParameters alloc] initSearchParametersWithBufs:self.bufs
                                                                         inputed:sString];
     
-    self.parameters.query = [[self.stemmer stemSentenceWitrhString:self.parameters.query] lowercaseString];
+    self.parameters.query = [[self.stemmer stemSentenceWithString:self.parameters.query] lowercaseString];
     
     NSArray * buf = [self.parameters.query componentsSeparatedByString:@" "];
     NSString * buf1 = @"(";
@@ -235,7 +249,6 @@ static sqlite3_stmt * stmt = nil;
             } else {
                 buf1 = [NSString stringWithFormat:@"%@ OR %@*)", buf1, [buf objectAtIndex:i]];
             }
-            
         }
     } else {
         if ([[buf objectAtIndex:0] length] > 0) {
@@ -317,7 +330,7 @@ static sqlite3_stmt * stmt = nil;
     NSString * querySt;
     if (hasValue&&hasDate) {  //if query has both value and date
         querySt = [NSString stringWithFormat:@"\
-                   SELECT type, id, desc, value, date, currency \
+                   SELECT type, id, desc, value, date, currency, object \
                    FROM search as s \
                    WHERE s.desc MATCH \'%@\'\
                    AND s.value BETWEEN \'%@\' AND \'%@\'\
@@ -326,7 +339,7 @@ static sqlite3_stmt * stmt = nil;
                    ORDER BY bm25(search);", query.desc, query.first_value, query.second_value, query.first_date, query.second_date, query.currency];
     } else if (hasValue&&!hasDate) { //if query has value but not date
         querySt = [NSString stringWithFormat:@"\
-                   SELECT type, id, desc, value, date, currency \
+                   SELECT type, id, desc, value, date, currency, object \
                    FROM search as s \
                    WHERE s.desc MATCH \'%@\'\
                    AND s.value BETWEEN \'%@\' AND \'%@\'\
@@ -334,14 +347,14 @@ static sqlite3_stmt * stmt = nil;
                    ORDER BY bm25(search);", query.desc, query.first_value, query.second_value,query.currency];
     } else if (!hasValue&&hasDate) { //if query has date but not value
         querySt =  [NSString stringWithFormat:@"\
-                    SELECT type, id, desc, value, date, currency \
+                    SELECT type, id, desc, value, date, currency, object \
                     FROM search as s \
                     WHERE s.desc MATCH \'%@\'\
                     AND s.date BETWEEN \'%@\' AND \'%@\'\
                     ORDER BY bm25(search);", query.desc,query.first_date, query.second_date];
     } else { // query if has neither value nor date
         querySt =  [NSString stringWithFormat:@"\
-                    SELECT type, id, desc, value, date, currency \
+                    SELECT type, id, desc, value, date, currency, object \
                     FROM search as s \
                     WHERE s.desc MATCH \'%@\'\
                     ORDER BY bm25(search);", query.desc];
@@ -357,6 +370,7 @@ static sqlite3_stmt * stmt = nil;
             NSString * value;
             NSString * date;
             NSString * currency;
+            NSData * object;
             while(sqlite3_step(stmt) == SQLITE_ROW) {
                 type = [[NSString alloc] initWithUTF8String:
                         (const char *) sqlite3_column_text(stmt, 0)];
@@ -376,15 +390,20 @@ static sqlite3_stmt * stmt = nil;
                 currency = [[NSString alloc] initWithUTF8String:
                             (const char *) sqlite3_column_text(stmt, 5)];
                 
+                object = [[NSData alloc] initWithBase64EncodedString:[[NSString alloc] initWithUTF8String:
+                                                                      (const char *) sqlite3_column_text(stmt, 6)]
+                                                             options:0 ];
+                
                 
                 FTSItem * item;
-                item = [[FTSItem alloc] initItemWtihype:type
-                                                     ID:ID
-                                                 topics:[NSArray new]
-                                                   desc:desc
-                                                  value:[value floatValue]
-                                                   date:[self dateBackReformatWithDate:date]
-                                               currency:currency];
+                item = [[FTSItem alloc] initItemWithType:type
+                                                      ID:ID
+                                                  topics:[NSArray new]
+                                                    desc:desc
+                                                   value:[value floatValue]
+                                                    date:[self dateBackReformatWithDate:date]
+                                                currency:currency
+                                                  object:[NSObject new]];
                 
                 [resArray addObject:item];
             }
