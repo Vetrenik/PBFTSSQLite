@@ -191,14 +191,13 @@ static sqlite3_stmt * stmt = nil;
     NSString * object= @"";
     
     if ([item.object conformsToProtocol:@protocol(NSCoding)]) {
-        NSData * objectData = [NSKeyedArchiver archivedDataWithRootObject:item.object
-                                                    requiringSecureCoding:NO
-                                                                    error:nil];
+        NSData * objectData = [NSKeyedArchiver archivedDataWithRootObject:item.object];
         object = [objectData base64EncodedStringWithOptions:0];
     } else {
-        NSLog(@"Error on indexing object of type: %@ witrh id: %@, \n Object doesn't conforms to protocol: NSCoding", item.type, item.ID);
+        NSLog(@"Error on indexing object of class %@ with type: %@ with id: %@, \n Object doesn't conforms to protocol: NSCoding", NSStringFromClass([item.object class]),item.type, item.ID);
         @throw NSInternalInconsistencyException;
     }
+    
     
     
     
@@ -394,7 +393,7 @@ static sqlite3_stmt * stmt = nil;
                                                                       (const char *) sqlite3_column_text(stmt, 6)]
                                                              options:0 ];
                 
-                
+                id retObj = [NSKeyedUnarchiver unarchiveObjectWithData:object];
                 FTSItem * item;
                 item = [[FTSItem alloc] initItemWithType:type
                                                       ID:ID
@@ -403,7 +402,7 @@ static sqlite3_stmt * stmt = nil;
                                                    value:[value floatValue]
                                                     date:[self dateBackReformatWithDate:date]
                                                 currency:currency
-                                                  object:[NSObject new]];
+                                                  object:retObj];
                 
                 [resArray addObject:item];
             }
