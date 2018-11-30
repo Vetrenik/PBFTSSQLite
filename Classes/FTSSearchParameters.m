@@ -716,7 +716,7 @@
                 }
                 
                 // с 5 января
-                if (([words[i - 1] isEqualToString:@"на"] || [words[i - 1] isEqualToString:@"за"] || [words[i - 1] isEqualToString:@"с"] || [words[i - 1] isEqualToString:@"от"] || [words[i - 1] isEqualToString:@"после"] || [words[i - 1] isEqualToString:@"позже"] || [words[i - 1] isEqualToString:@"позднее"]) || (isParsedDay && ([words[i - 2] isEqualToString:@"на"] || [words[i - 2] isEqualToString:@"за"] || [words[i - 2] isEqualToString:@"с"] || [words[i - 2] isEqualToString:@"от"] || [words[i - 2] isEqualToString:@"после"] || [words[i - 1] isEqualToString:@"позже"] || [words[i - 1] isEqualToString:@"позднее"]))) {
+                if (([words[i - 1] isEqualToString:@"на"] || [words[i - 1] isEqualToString:@"за"] || [words[i - 1] isEqualToString:@"с"] || [words[i - 1] isEqualToString:@"от"] || [words[i - 1] isEqualToString:@"после"] || [words[i - 1] isEqualToString:@"позже"] || [words[i - 1] isEqualToString:@"позднее"]) || (isParsedDay && ([words[i - 1] isEqualToString:@"позже"] || [words[i - 1] isEqualToString:@"позднее"] || (i > 1 && ([words[i - 2] isEqualToString:@"на"] || [words[i - 2] isEqualToString:@"за"] || [words[i - 2] isEqualToString:@"с"] || [words[i - 2] isEqualToString:@"от"] || [words[i - 2] isEqualToString:@"после"]))))) {
                     if ([words[i - 1] isEqualToString:@"на"] || [words[i - 1] isEqualToString:@"за"] || [words[i - 1] isEqualToString:@"с"] || [words[i - 1] isEqualToString:@"от"] || [words[i - 1] isEqualToString:@"после"] || [words[i - 1] isEqualToString:@"позже"] || [words[i - 1] isEqualToString:@"позднее"]) {
                         [bufs cleanUpWordsWithIndex:i - 1];
                     } else {
@@ -1142,431 +1142,431 @@
         }
         
         switch (k) {
-            case 13: { // сутки +
-                [bufs cleanUpWordsWithIndex:i];
-                
-                if ([words[i] isEqualToString:@"сутки"]) { // Единственное
+                case 13: { // сутки +
+                    [bufs cleanUpWordsWithIndex:i];
                     
-                    components.day = -1;
-                    NSString* dateyesterday = [dateFormat stringFromDate:[[NSCalendar currentCalendar] dateByAddingComponents:components toDate:[NSDate date] options:0]];
-                    NSString* datetoday = [dateFormat stringFromDate:[NSDate date]];
-                    [bufs.buff appendString:dateyesterday];
-                    [bufs.buff appendString:@" "];
-                    [bufs.buff appendString:curtime];
-                    
-                    [bufs.buft appendString:datetoday];
-                    [bufs.buft appendString:@" "];
-                    [bufs.buft appendString:curtime];
-                } else { // Множественное
-                    if (i > 0) {
-                        int num;
+                    if ([words[i] isEqualToString:@"сутки"]) { // Единственное
                         
-                        if([nf numberFromString:words[i - 1]] != nil) {
-                            num = [words[i - 1] intValue];
-                            [bufs cleanUpWordsWithIndex:i - 1];
-                        } else {
-                            if ([words[i - 1] isEqualToString:@"двое"]) {
-                                num = 2;
-                            } else if ([words[i - 1] isEqualToString:@"трое"]) {
-                                num = 3;
-                            } else if ([words[i - 1] isEqualToString:@"четверо"]) {
-                                num = 4;
-                            } else if ([words[i - 1] isEqualToString:@"пятеро"]) {
-                                num = 5;
-                            } else if ([words[i - 1] isEqualToString:@"шестеро"]) {
-                                num = 6;
-                            } else if ([words[i - 1] isEqualToString:@"семеро"]) {
-                                num = 7;
+                        components.day = -1;
+                        NSString* dateyesterday = [dateFormat stringFromDate:[[NSCalendar currentCalendar] dateByAddingComponents:components toDate:[NSDate date] options:0]];
+                        NSString* datetoday = [dateFormat stringFromDate:[NSDate date]];
+                        [bufs.buff appendString:dateyesterday];
+                        [bufs.buff appendString:@" "];
+                        [bufs.buff appendString:curtime];
+                        
+                        [bufs.buft appendString:datetoday];
+                        [bufs.buft appendString:@" "];
+                        [bufs.buft appendString:curtime];
+                    } else { // Множественное
+                        if (i > 0) {
+                            int num;
+                            
+                            if([nf numberFromString:words[i - 1]] != nil) {
+                                num = [words[i - 1] intValue];
+                                [bufs cleanUpWordsWithIndex:i - 1];
+                            } else {
+                                if ([words[i - 1] isEqualToString:@"двое"]) {
+                                    num = 2;
+                                } else if ([words[i - 1] isEqualToString:@"трое"]) {
+                                    num = 3;
+                                } else if ([words[i - 1] isEqualToString:@"четверо"]) {
+                                    num = 4;
+                                } else if ([words[i - 1] isEqualToString:@"пятеро"]) {
+                                    num = 5;
+                                } else if ([words[i - 1] isEqualToString:@"шестеро"]) {
+                                    num = 6;
+                                } else if ([words[i - 1] isEqualToString:@"семеро"]) {
+                                    num = 7;
+                                } else {
+                                    continue;
+                                }
+                                
+                                components.day = -num;
+                                NSString* timeFrom = [dateFormat stringFromDate:[[NSCalendar currentCalendar] dateByAddingComponents:components toDate:[NSDate date] options:0]];
+                                NSString* timeTo = [dateFormat stringFromDate:[NSDate date]];
+                                components.day = 0;
+                                [bufs.buff appendString:timeFrom];
+                                [bufs.buff appendString:@" "];
+                                [bufs.buff appendString:curtime];
+                                
+                                [bufs.buft appendString:timeTo];
+                                [bufs.buft appendString:@" "];
+                                [bufs.buft appendString:curtime];
+                                [bufs cleanUpWordsWithIndex:i - 1];
+                            }
+                        }
+                    }
+                    break;
+                }
+                case 14: { // день +
+                    [bufs cleanUpWordsWithIndex:i];
+                    
+                    components.day = 1;
+                    NSString* todayTomorrow = [dateFormat stringFromDate:[[NSCalendar currentCalendar] dateByAddingComponents:components toDate:[NSDate date] options:0]];
+                    if ([words[i] isEqualToString:@"день"]) { // единственное число
+                        if ([words[i - 1] isEqualToString:@"предыдущий"] || [words[i - 1] isEqualToString:@"прошлый"] || [words[i - 1] isEqualToString:@"прошедший"] || [words[i - 1] isEqualToString:@"последний"]) {
+                            
+                            [bufs.buft setString:[dateFormat stringFromDate:[[NSCalendar currentCalendar] dateByAddingComponents:components toDate:[NSDate date] options:0]]];
+                            [bufs.buft appendString:@" 00:00"];
+                            components.day = 0;
+                            [bufs.buff setString:[dateFormat stringFromDate:[[NSCalendar currentCalendar] dateByAddingComponents:components toDate:[NSDate date] options:0]]];
+                            [bufs.buff appendString:@" 00:00"];
+                            
+                        } else { // Этот, текущий
+                            [bufs.buff setString:[dateFormat stringFromDate:[[NSCalendar currentCalendar] dateByAddingComponents:components toDate:[NSDate date] options:0]]];
+                            [bufs.buff appendString:@" 00:00"];
+                            
+                            [bufs.buft appendString:todayTomorrow];
+                            [bufs.buft appendString:@" 00:00"];
+                        }
+                    } else { // Множественное число
+                        if (i > 0) { // Надо взять число которое стоит перед ключевым словом
+                            int num = 0;
+                            if([nf numberFromString:words[i - 2]] != nil) {
+                                num = [words[i - 2] intValue];
+                            }
+                            if ([words[i - 1] isEqualToString:@"прошедших"] || [words[i - 1] isEqualToString:@"последних"] || [words[i - 1] isEqualToString:@"прошлых"] || [words[i - 1] isEqualToString:@"предыдущих"]) {
+                                components.day = -num;
+                                [bufs cleanUpWordsWithIndex:i - 2];
+                                [bufs.buft appendString:todayTomorrow];
+                                [bufs.buft appendString:@" 00:00"];
+                            } else {
+                                [bufs cleanUpWordsWithIndex:i - 1];
+                                if([nf numberFromString:words[i - 1]] != nil) {
+                                    num = [words[i - 1] intValue];
+                                } else {
+                                    num = 2;
+                                }
+                                components.day = -num;
+                                [bufs.buft appendString:todayTomorrow];
+                                [bufs.buft appendString:@" 00:00"];
+                            }
+                            [bufs.buff setString:[dateFormat stringFromDate:[[NSCalendar currentCalendar] dateByAddingComponents:components toDate:[NSDate date] options:0]]];
+                            [bufs.buff appendString:@" 00:00"];
+                            components.day = compDay;
+                        }
+                    }
+                    break;
+                }
+                case 15: { // неделя +
+                    [bufs cleanUpWordsWithIndex:i];
+                    components.day = 1;
+                    NSString* timeTo = [dateFormat stringFromDate:[[NSCalendar currentCalendar] dateByAddingComponents:components toDate:[NSDate date] options:0]];
+                    components.day = 0;
+                    if ([words[i] isEqualToString:@"неделю"]) { // Единственное
+                        components.weekOfMonth = -1;
+                        NSString* timeFrom = [dateFormat stringFromDate:[[NSCalendar currentCalendar] dateByAddingComponents:components toDate:[NSDate date] options:0]];
+                        [bufs.buff appendString:timeFrom];
+                        [bufs.buff appendString:@" 00:00"];
+                        
+                        [bufs.buft appendString:timeTo];
+                        [bufs.buft appendString:@" 00:00"];
+                        components.weekOfMonth = 0;
+                    } else { // Множественное
+                        if (i > 0) { // Надо взять число которое стоит перед ключевым словом
+                            int num = 0;
+                            if([nf numberFromString:words[i - 2]] != nil || [nf numberFromString:words[i - 1]] != nil) {
+                                if ([words[i - 1] isEqualToString:@"прошедшие"] || [words[i - 1] isEqualToString:@"последние"] || [words[i - 1] isEqualToString:@"прошлые"] || [words[i - 1] isEqualToString:@"прошлых"] || [words[i - 1] isEqualToString:@"прошедших"] || [words[i - 1] isEqualToString:@"последних"]) {
+                                    if([nf numberFromString:words[i - 2]] != nil) {
+                                        num = [words[i - 2] intValue];
+                                    }
+                                } else {
+                                    if([nf numberFromString:words[i - 1]] != nil) {
+                                        num = [words[i - 1] intValue];
+                                    }
+                                }
+                                
+                                components.weekOfMonth = -num;
+                                NSString* timeFrom = [dateFormat stringFromDate:[[NSCalendar currentCalendar] dateByAddingComponents:components toDate:[NSDate date] options:0]];
+                                [bufs.buff appendString:timeFrom];
+                                [bufs.buff appendString:@" 00:00"];
+                                
+                                [bufs.buft appendString:timeTo];
+                                [bufs.buft appendString:@" 00:00"];
+                                [bufs cleanUpWordsWithIndex:i - 1];
+                                components.weekOfMonth = 0;
                             } else {
                                 continue;
                             }
-                            
-                            components.day = -num;
-                            NSString* timeFrom = [dateFormat stringFromDate:[[NSCalendar currentCalendar] dateByAddingComponents:components toDate:[NSDate date] options:0]];
-                            NSString* timeTo = [dateFormat stringFromDate:[NSDate date]];
-                            components.day = 0;
-                            [bufs.buff appendString:timeFrom];
-                            [bufs.buff appendString:@" "];
-                            [bufs.buff appendString:curtime];
-                            
-                            [bufs.buft appendString:timeTo];
-                            [bufs.buft appendString:@" "];
-                            [bufs.buft appendString:curtime];
-                            [bufs cleanUpWordsWithIndex:i - 1];
                         }
                     }
+                    break;
                 }
-                break;
-            }
-            case 14: { // день +
-                [bufs cleanUpWordsWithIndex:i];
-                
-                components.day = 1;
-                NSString* todayTomorrow = [dateFormat stringFromDate:[[NSCalendar currentCalendar] dateByAddingComponents:components toDate:[NSDate date] options:0]];
-                if ([words[i] isEqualToString:@"день"]) { // единственное число
-                    if ([words[i - 1] isEqualToString:@"предыдущий"] || [words[i - 1] isEqualToString:@"прошлый"] || [words[i - 1] isEqualToString:@"прошедший"] || [words[i - 1] isEqualToString:@"последний"]) {
-                        
-                        [bufs.buft setString:[dateFormat stringFromDate:[[NSCalendar currentCalendar] dateByAddingComponents:components toDate:[NSDate date] options:0]]];
-                        [bufs.buft appendString:@" 00:00"];
+                case 16: { // месяц ++
+                    [bufs cleanUpWordsWithIndex:i];
+                    if ([words[i] isEqualToString:@"месяц"]) { // Единственное
+                        // если компоненты нормально обнуляется тут все норм
+                        NSString* dateToday = [dateFormat stringFromDate:[[NSCalendar currentCalendar] dateByAddingComponents:components toDate:[NSDate date] options:0]];
+                        components.day = 1;
+                        NSMutableString* tomorrow = [dateFormat stringFromDate:[[NSCalendar currentCalendar] dateByAddingComponents:components toDate:[NSDate date] options:0]].mutableCopy;
                         components.day = 0;
-                        [bufs.buff setString:[dateFormat stringFromDate:[[NSCalendar currentCalendar] dateByAddingComponents:components toDate:[NSDate date] options:0]]];
-                        [bufs.buff appendString:@" 00:00"];
-                        
-                    } else { // Этот, текущий
-                        [bufs.buff setString:[dateFormat stringFromDate:[[NSCalendar currentCalendar] dateByAddingComponents:components toDate:[NSDate date] options:0]]];
-                        [bufs.buff appendString:@" 00:00"];
-                        
-                        [bufs.buft appendString:todayTomorrow];
-                        [bufs.buft appendString:@" 00:00"];
-                    }
-                } else { // Множественное число
-                    if (i > 0) { // Надо взять число которое стоит перед ключевым словом
-                        int num = 0;
-                        if([nf numberFromString:words[i - 2]] != nil) {
-                            num = [words[i - 2] intValue];
-                        }
-                        if ([words[i - 1] isEqualToString:@"прошедших"] || [words[i - 1] isEqualToString:@"последних"] || [words[i - 1] isEqualToString:@"прошлых"] || [words[i - 1] isEqualToString:@"предыдущих"]) {
-                            components.day = -num;
-                            [bufs cleanUpWordsWithIndex:i - 2];
-                            [bufs.buft appendString:todayTomorrow];
-                            [bufs.buft appendString:@" 00:00"];
-                        } else {
-                            [bufs cleanUpWordsWithIndex:i - 1];
+                        NSMutableString* dateFrom = @"".mutableCopy;
+                        if (i > 0) {
+                            int num;
                             if([nf numberFromString:words[i - 1]] != nil) {
                                 num = [words[i - 1] intValue];
+                                [words replaceObjectAtIndex:i withObject:@"месяца"];
+                                i = i - 1;
+                                [bufs cleanUpWordsWithIndex:i - 1];
+                                continue;
                             } else {
-                                num = 2;
+                                [bufs cleanUpWordsWithIndex:i - 1];
+                                if ([words[i - 1] isEqualToString:@"текущий"] || [words[i - 1] isEqualToString:@"этот"] || [words[i - 1] isEqualToString:@"прошедший"] || [words[i - 1] isEqualToString:@"последний"]) {
+                                    [dateFrom appendString:@"01/"];
+                                    [dateFrom appendString:[dateToday substringFromIndex:3]];
+                                }
+                                if ([words[i - 1] isEqualToString:@"за"] || [words[i - 1] isEqualToString:@"на"]) {
+                                    components.month = -1;
+                                    dateFrom = [dateFormat stringFromDate:[[NSCalendar currentCalendar] dateByAddingComponents:components toDate:[NSDate date] options:0]].mutableCopy;
+                                    components.month = 0;
+                                }
+                                if ([words[i - 1] isEqualToString:@"прошлый"] || [words[i - 1] isEqualToString:@"предыдущий"]) {
+                                    components.month = -1;
+                                    [dateFrom appendString:@"01/"];
+                                    [dateFrom appendString:[[dateFormat stringFromDate:[[NSCalendar currentCalendar] dateByAddingComponents:components toDate:[NSDate date] options:0]] substringFromIndex:3]];
+                                    
+                                    tomorrow = @"01/".mutableCopy;
+                                    [tomorrow appendString:[dateToday substringFromIndex:3]];
+                                    components.month = 0;
+                                }
+                                if ([words[i - 1] isEqualToString:@"позапрошлый"] || [words[i - 1] isEqualToString:@"предпоследний"]) {
+                                    components.month = -2;
+                                    dateFrom = @"01/".mutableCopy;
+                                    tomorrow = @"01/".mutableCopy;
+                                    [dateFrom appendString:[[dateFormat stringFromDate:[[NSCalendar currentCalendar] dateByAddingComponents:components toDate:[NSDate date] options:0]] substringFromIndex:3]];
+                                    components.month = -1;
+                                    [tomorrow appendString:[[dateFormat stringFromDate:[[NSCalendar currentCalendar] dateByAddingComponents:components toDate:[NSDate date] options:0]] substringFromIndex:3]];
+                                    components.month = 0;
+                                }
                             }
-                            components.day = -num;
-                            [bufs.buft appendString:todayTomorrow];
-                            [bufs.buft appendString:@" 00:00"];
                         }
-                        [bufs.buff setString:[dateFormat stringFromDate:[[NSCalendar currentCalendar] dateByAddingComponents:components toDate:[NSDate date] options:0]]];
+                        
+                        [bufs.buff appendString:dateFrom];
                         [bufs.buff appendString:@" 00:00"];
-                        components.day = compDay;
-                    }
-                }
-                break;
-            }
-            case 15: { // неделя +
-                [bufs cleanUpWordsWithIndex:i];
-                components.day = 1;
-                NSString* timeTo = [dateFormat stringFromDate:[[NSCalendar currentCalendar] dateByAddingComponents:components toDate:[NSDate date] options:0]];
-                components.day = 0;
-                if ([words[i] isEqualToString:@"неделю"]) { // Единственное
-                    components.weekOfMonth = -1;
-                    NSString* timeFrom = [dateFormat stringFromDate:[[NSCalendar currentCalendar] dateByAddingComponents:components toDate:[NSDate date] options:0]];
-                    [bufs.buff appendString:timeFrom];
-                    [bufs.buff appendString:@" 00:00"];
-                    
-                    [bufs.buft appendString:timeTo];
-                    [bufs.buft appendString:@" 00:00"];
-                    components.weekOfMonth = 0;
-                } else { // Множественное
-                    if (i > 0) { // Надо взять число которое стоит перед ключевым словом
-                        int num = 0;
-                        if([nf numberFromString:words[i - 2]] != nil || [nf numberFromString:words[i - 1]] != nil) {
-                            if ([words[i - 1] isEqualToString:@"прошедшие"] || [words[i - 1] isEqualToString:@"последние"] || [words[i - 1] isEqualToString:@"прошлые"] || [words[i - 1] isEqualToString:@"прошлых"] || [words[i - 1] isEqualToString:@"прошедших"] || [words[i - 1] isEqualToString:@"последних"]) {
-                                if([nf numberFromString:words[i - 2]] != nil) {
-                                    num = [words[i - 2] intValue];
+                        
+                        [bufs.buft appendString:tomorrow];
+                        [bufs.buft appendString:@" 00:00"];
+                        
+                    } else { // Множественное
+                        if (i > 0) { // Надо взять число которое стоит перед ключевым словом
+                            int num = 0;
+                            if([nf numberFromString:words[i - 2]] != nil || [nf numberFromString:words[i - 1]] != nil) {
+                                if ([words[i - 1] isEqualToString:@"прошлых"] || [words[i - 1] isEqualToString:@"прошедших"] || [words[i - 1] isEqualToString:@"последних"] || [words[i - 1] isEqualToString:@"предыдущих"]) {
+                                    if([nf numberFromString:words[i - 2]] != nil) {
+                                        num = [words[i - 2] intValue];
+                                    }
+                                } else {
+                                    if([nf numberFromString:words[i - 1]] != nil) {
+                                        num = [words[i - 1] intValue];
+                                    }
                                 }
+                                components.day = 1;
+                                
+                                NSString* timeTo = [dateFormat stringFromDate:[[NSCalendar currentCalendar] dateByAddingComponents:components toDate:[NSDate date] options:0]];
+                                components.day = 0;
+                                components.month = -num;
+                                
+                                NSString* timeFrom = [dateFormat stringFromDate:[[NSCalendar currentCalendar] dateByAddingComponents:components toDate:[NSDate date] options:0]];
+                                components.month = 0;
+                                [bufs cleanUpWordsWithIndex:i - 1];
+                                
+                                [bufs.buff appendString:timeFrom];
+                                [bufs.buff appendString:@" 00:00"];
+                                
+                                [bufs.buft appendString:timeTo];
+                                [bufs.buft appendString:@" 00:00"];
                             } else {
-                                if([nf numberFromString:words[i - 1]] != nil) {
-                                    num = [words[i - 1] intValue];
-                                }
+                                break;
                             }
-                            
-                            components.weekOfMonth = -num;
-                            NSString* timeFrom = [dateFormat stringFromDate:[[NSCalendar currentCalendar] dateByAddingComponents:components toDate:[NSDate date] options:0]];
-                            [bufs.buff appendString:timeFrom];
-                            [bufs.buff appendString:@" 00:00"];
-                            
-                            [bufs.buft appendString:timeTo];
-                            [bufs.buft appendString:@" 00:00"];
-                            [bufs cleanUpWordsWithIndex:i - 1];
-                            components.weekOfMonth = 0;
-                        } else {
-                            continue;
                         }
                     }
+                    break;
                 }
-                break;
-            }
-            case 16: { // месяц ++
-                [bufs cleanUpWordsWithIndex:i];
-                if ([words[i] isEqualToString:@"месяц"]) { // Единственное
-                    // если компоненты нормально обнуляется тут все норм
-                    NSString* dateToday = [dateFormat stringFromDate:[[NSCalendar currentCalendar] dateByAddingComponents:components toDate:[NSDate date] options:0]];
+                
+                case 17: { // лет ++
+                    [bufs cleanUpWordsWithIndex:i];
+                    
+                    NSMutableString* datetoday = [dateFormat stringFromDate:[[NSCalendar currentCalendar] dateByAddingComponents:components toDate:[NSDate date] options:0]].mutableCopy;
                     components.day = 1;
                     NSMutableString* tomorrow = [dateFormat stringFromDate:[[NSCalendar currentCalendar] dateByAddingComponents:components toDate:[NSDate date] options:0]].mutableCopy;
                     components.day = 0;
-                    NSMutableString* dateFrom = @"".mutableCopy;
-                    if (i > 0) {
-                        int num;
-                        if([nf numberFromString:words[i - 1]] != nil) {
-                            num = [words[i - 1] intValue];
-                            [words replaceObjectAtIndex:i withObject:@"месяца"];
-                            i = i - 1;
-                            [bufs cleanUpWordsWithIndex:i - 1];
-                            continue;
-                        } else {
-                            [bufs cleanUpWordsWithIndex:i - 1];
-                            if ([words[i - 1] isEqualToString:@"текущий"] || [words[i - 1] isEqualToString:@"этот"] || [words[i - 1] isEqualToString:@"прошедший"] || [words[i - 1] isEqualToString:@"последний"]) {
-                                [dateFrom appendString:@"01/"];
-                                [dateFrom appendString:[dateToday substringFromIndex:3]];
-                            }
-                            if ([words[i - 1] isEqualToString:@"за"] || [words[i - 1] isEqualToString:@"на"]) {
-                                components.month = -1;
-                                dateFrom = [dateFormat stringFromDate:[[NSCalendar currentCalendar] dateByAddingComponents:components toDate:[NSDate date] options:0]].mutableCopy;
-                                components.month = 0;
-                            }
-                            if ([words[i - 1] isEqualToString:@"прошлый"] || [words[i - 1] isEqualToString:@"предыдущий"]) {
-                                components.month = -1;
-                                [dateFrom appendString:@"01/"];
-                                [dateFrom appendString:[[dateFormat stringFromDate:[[NSCalendar currentCalendar] dateByAddingComponents:components toDate:[NSDate date] options:0]] substringFromIndex:3]];
-                                
-                                tomorrow = @"01/".mutableCopy;
-                                [tomorrow appendString:[dateToday substringFromIndex:3]];
-                                components.month = 0;
-                            }
-                            if ([words[i - 1] isEqualToString:@"позапрошлый"] || [words[i - 1] isEqualToString:@"предпоследний"]) {
-                                components.month = -2;
-                                dateFrom = @"01/".mutableCopy;
-                                tomorrow = @"01/".mutableCopy;
-                                [dateFrom appendString:[[dateFormat stringFromDate:[[NSCalendar currentCalendar] dateByAddingComponents:components toDate:[NSDate date] options:0]] substringFromIndex:3]];
-                                components.month = -1;
-                                [tomorrow appendString:[[dateFormat stringFromDate:[[NSCalendar currentCalendar] dateByAddingComponents:components toDate:[NSDate date] options:0]] substringFromIndex:3]];
-                                components.month = 0;
-                            }
-                        }
-                    }
+                    NSMutableString* dateFrom;
                     
-                    [bufs.buff appendString:dateFrom];
-                    [bufs.buff appendString:@" 00:00"];
-                    
-                    [bufs.buft appendString:tomorrow];
-                    [bufs.buft appendString:@" 00:00"];
-                    
-                } else { // Множественное
-                    if (i > 0) { // Надо взять число которое стоит перед ключевым словом
-                        int num = 0;
-                        if([nf numberFromString:words[i - 2]] != nil || [nf numberFromString:words[i - 1]] != nil) {
-                            if ([words[i - 1] isEqualToString:@"прошлых"] || [words[i - 1] isEqualToString:@"прошедших"] || [words[i - 1] isEqualToString:@"последних"] || [words[i - 1] isEqualToString:@"предыдущих"]) {
-                                if([nf numberFromString:words[i - 2]] != nil) {
-                                    num = [words[i - 2] intValue];
+                    if ([words[i] isEqualToString:@"год"]) { // Единственное
+                        if (i > 0) {
+                            int num;
+                            if([nf numberFromString:words[i - 1]] != nil) {
+                                num = [words[i - 1] intValue];
+                                [bufs cleanUpWordsWithIndex:i - 1];
+                                dateFrom = @"01/01/".mutableCopy;
+                                [dateFrom appendString:words[i - 1]];
+                                //dateFrom = "01/01/" + Integer.toString(num);
+                                if (num < components.year) {
+                                    datetoday = @"01/01/".mutableCopy;
+                                    [datetoday appendString:[NSString stringWithFormat:@"%d", num + 1]];
                                 }
                             } else {
-                                if([nf numberFromString:words[i - 1]] != nil) {
-                                    num = [words[i - 1] intValue];
+                                if ([words[i - 1] isEqualToString:@"текущий"] || [words[i - 1] isEqualToString:@"этот"]) {
+                                    [bufs cleanUpWordsWithIndex:i - 1];
+                                    dateFrom = @"01/01/".mutableCopy;
+                                    [dateFrom appendString:[datetoday substringFromIndex:6]];
+                                    datetoday = tomorrow;
+                                }
+                                if ([words[i - 1] isEqualToString:@"за"]) {
+                                    dateFrom = [datetoday substringToIndex:6].mutableCopy;
+                                    [dateFrom appendString:[NSString stringWithFormat:@"%ld", components.year - 1]];
+                                    datetoday = tomorrow;
+                                }
+                                if ([words[i - 1] isEqualToString:@"прошедший"] || [words[i - 1] isEqualToString:@"последний"]) {
+                                    [bufs cleanUpWordsWithIndex:i - 1];
+                                    dateFrom = [datetoday substringToIndex:6].mutableCopy;
+                                    [dateFrom appendString:[NSString stringWithFormat:@"%ld", components.year - 1]];
+                                    datetoday = tomorrow;
+                                }
+                                if ([words[i - 1] isEqualToString:@"предыдущий"] || [words[i - 1] isEqualToString:@"прошлый"]) {
+                                    [bufs cleanUpWordsWithIndex:i - 1];
+                                    dateFrom = @"01/01/".mutableCopy;
+                                    datetoday = @"01/01/".mutableCopy;
+                                    [dateFrom appendString:[NSString stringWithFormat:@"%ld", components.year - 1]];
+                                    [datetoday appendString:[NSString stringWithFormat:@"%ld", components.year]];
+                                }
+                                if ([words[i - 1] isEqualToString:@"позапрошлый"]) {
+                                    [bufs cleanUpWordsWithIndex:i - 1];
+                                    dateFrom = @"01/01/".mutableCopy;
+                                    datetoday = @"01/01/".mutableCopy;
+                                    [dateFrom appendString:[NSString stringWithFormat:@"%ld", components.year - 2]];
+                                    [datetoday appendString:[NSString stringWithFormat:@"%ld", components.year - 1]];
                                 }
                             }
-                            components.day = 1;
-                            
-                            NSString* timeTo = [dateFormat stringFromDate:[[NSCalendar currentCalendar] dateByAddingComponents:components toDate:[NSDate date] options:0]];
-                            components.day = 0;
-                            components.month = -num;
-                            
-                            NSString* timeFrom = [dateFormat stringFromDate:[[NSCalendar currentCalendar] dateByAddingComponents:components toDate:[NSDate date] options:0]];
-                            components.month = 0;
-                            [bufs cleanUpWordsWithIndex:i - 1];
-                            
-                            [bufs.buff appendString:timeFrom];
-                            [bufs.buff appendString:@" 00:00"];
-                            
-                            [bufs.buft appendString:timeTo];
-                            [bufs.buft appendString:@" 00:00"];
-                        } else {
-                            break;
                         }
-                    }
-                }
-                break;
-            }
-                
-            case 17: { // лет ++
-                [bufs cleanUpWordsWithIndex:i];
-                
-                NSMutableString* datetoday = [dateFormat stringFromDate:[[NSCalendar currentCalendar] dateByAddingComponents:components toDate:[NSDate date] options:0]].mutableCopy;
-                components.day = 1;
-                NSMutableString* tomorrow = [dateFormat stringFromDate:[[NSCalendar currentCalendar] dateByAddingComponents:components toDate:[NSDate date] options:0]].mutableCopy;
-                components.day = 0;
-                NSMutableString* dateFrom;
-                
-                if ([words[i] isEqualToString:@"год"]) { // Единственное
-                    if (i > 0) {
-                        int num;
-                        if([nf numberFromString:words[i - 1]] != nil) {
-                            num = [words[i - 1] intValue];
-                            [bufs cleanUpWordsWithIndex:i - 1];
-                            dateFrom = @"01/01/".mutableCopy;
-                            [dateFrom appendString:words[i - 1]];
-                            //dateFrom = "01/01/" + Integer.toString(num);
-                            if (num < components.year) {
-                                datetoday = @"01/01/".mutableCopy;
-                                [datetoday appendString:[NSString stringWithFormat:@"%d", num + 1]];
-                            }
-                        } else {
-                            if ([words[i - 1] isEqualToString:@"текущий"] || [words[i - 1] isEqualToString:@"этот"]) {
-                                [bufs cleanUpWordsWithIndex:i - 1];
-                                dateFrom = @"01/01/".mutableCopy;
-                                [dateFrom appendString:[datetoday substringFromIndex:6]];
-                                datetoday = tomorrow;
-                            }
-                            if ([words[i - 1] isEqualToString:@"за"]) {
-                                dateFrom = [datetoday substringToIndex:6].mutableCopy;
-                                [dateFrom appendString:[NSString stringWithFormat:@"%ld", components.year - 1]];
-                                datetoday = tomorrow;
-                            }
-                            if ([words[i - 1] isEqualToString:@"прошедший"] || [words[i - 1] isEqualToString:@"последний"]) {
-                                [bufs cleanUpWordsWithIndex:i - 1];
-                                dateFrom = [datetoday substringToIndex:6].mutableCopy;
-                                [dateFrom appendString:[NSString stringWithFormat:@"%ld", components.year - 1]];
-                                datetoday = tomorrow;
-                            }
-                            if ([words[i - 1] isEqualToString:@"предыдущий"] || [words[i - 1] isEqualToString:@"прошлый"]) {
-                                [bufs cleanUpWordsWithIndex:i - 1];
-                                dateFrom = @"01/01/".mutableCopy;
-                                datetoday = @"01/01/".mutableCopy;
-                                [dateFrom appendString:[NSString stringWithFormat:@"%ld", components.year - 1]];
-                                [datetoday appendString:[NSString stringWithFormat:@"%ld", components.year]];
-                            }
-                            if ([words[i - 1] isEqualToString:@"позапрошлый"]) {
-                                [bufs cleanUpWordsWithIndex:i - 1];
-                                dateFrom = @"01/01/".mutableCopy;
-                                datetoday = @"01/01/".mutableCopy;
-                                [dateFrom appendString:[NSString stringWithFormat:@"%ld", components.year - 2]];
-                                [datetoday appendString:[NSString stringWithFormat:@"%ld", components.year - 1]];
-                            }
-                        }
-                    }
-                    [bufs.buff appendString:dateFrom];
-                    [bufs.buff appendString:@" 00:00"];
-                    
-                    [bufs.buft appendString:datetoday];
-                    [bufs.buft appendString:@" 00:00"];
-                    
-                } else { // Множественное
-                    if (i > 0) { // Надо взять число которое стоит перед ключевым словом
+                        [bufs.buff appendString:dateFrom];
+                        [bufs.buff appendString:@" 00:00"];
                         
-                        int num;
-                        if ([nf numberFromString:words[i - 1]]) {
-                            num = [words[i - 1] intValue];
-                            dateFrom = [datetoday substringToIndex:6].mutableCopy;
-                            [dateFrom appendString:[NSString stringWithFormat:@"%ld", components.year - num + 1]];
-                            [bufs cleanUpWordsWithIndex:i - 1];
+                        [bufs.buft appendString:datetoday];
+                        [bufs.buft appendString:@" 00:00"];
+                        
+                    } else { // Множественное
+                        if (i > 0) { // Надо взять число которое стоит перед ключевым словом
                             
-                            [bufs.buff appendString:dateFrom];
-                            [bufs.buff appendString:@" 00:00"];
-                            
-                            [bufs.buft appendString:tomorrow];
-                            [bufs.buft appendString:@" 00:00"];
-                            
-                        } else {
-                            
-                            dateFrom = [datetoday substringToIndex:6].mutableCopy;
-                            [dateFrom appendString:[NSString stringWithFormat:@"%ld", components.year - 1]];
-                            
-                            [bufs.buff appendString:dateFrom];
-                            [bufs.buff appendString:@" 00:00"];
-                            
-                            [bufs.buft appendString:tomorrow];
-                            [bufs.buft appendString:@" 00:00"];
-                            break;
+                            int num;
+                            if ([nf numberFromString:words[i - 1]]) {
+                                num = [words[i - 1] intValue];
+                                dateFrom = [datetoday substringToIndex:6].mutableCopy;
+                                [dateFrom appendString:[NSString stringWithFormat:@"%ld", components.year - num + 1]];
+                                [bufs cleanUpWordsWithIndex:i - 1];
+                                
+                                [bufs.buff appendString:dateFrom];
+                                [bufs.buff appendString:@" 00:00"];
+                                
+                                [bufs.buft appendString:tomorrow];
+                                [bufs.buft appendString:@" 00:00"];
+                                
+                            } else {
+                                
+                                dateFrom = [datetoday substringToIndex:6].mutableCopy;
+                                [dateFrom appendString:[NSString stringWithFormat:@"%ld", components.year - 1]];
+                                
+                                [bufs.buff appendString:dateFrom];
+                                [bufs.buff appendString:@" 00:00"];
+                                
+                                [bufs.buft appendString:tomorrow];
+                                [bufs.buft appendString:@" 00:00"];
+                                break;
+                            }
                         }
                     }
+                    break;
                 }
-                break;
-            }
-            case 18: { // сегодня +
-                [FTSSearchParameters specificDayprocWithI:i
+                case 18: { // сегодня +
+                    [FTSSearchParameters specificDayprocWithI:i
+                                                        words:words
+                                                    dayNumber:0
+                                                         bufs:bufs
+                                           isSingleTermPeriod:isSingleTermPeriod
+                                                      isFirst:firstIndex == i];
+                    break;
+                }
+                case 19: { // вчера +
+                    [FTSSearchParameters specificDayprocWithI:i
+                                                        words:words
+                                                    dayNumber:-1
+                                                         bufs:bufs
+                                           isSingleTermPeriod:isSingleTermPeriod
+                                                      isFirst:firstIndex == i];
+                    break;
+                }
+                case 20: { // позавчера +
+                    [FTSSearchParameters specificDayprocWithI:i
+                                                        words:words
+                                                    dayNumber:-2
+                                                         bufs:bufs
+                                           isSingleTermPeriod:isSingleTermPeriod
+                                                      isFirst:firstIndex == i];
+                    break;
+                }
+                case 21: { // пн +
+                    [FTSSearchParameters weekDayprocWithI:i
                                                     words:words
-                                                dayNumber:0
+                                                dayNumber:k - 20
                                                      bufs:bufs
                                        isSingleTermPeriod:isSingleTermPeriod
                                                   isFirst:firstIndex == i];
-                break;
-            }
-            case 19: { // вчера +
-                [FTSSearchParameters specificDayprocWithI:i
+                    break;
+                }
+                case 22: { // вт +
+                    [FTSSearchParameters weekDayprocWithI:i
                                                     words:words
-                                                dayNumber:-1
+                                                dayNumber:k - 20
                                                      bufs:bufs
                                        isSingleTermPeriod:isSingleTermPeriod
                                                   isFirst:firstIndex == i];
-                break;
-            }
-            case 20: { // позавчера +
-                [FTSSearchParameters specificDayprocWithI:i
+                    break;
+                }
+                case 23: { // ср +
+                    [FTSSearchParameters weekDayprocWithI:i
                                                     words:words
-                                                dayNumber:-2
+                                                dayNumber:k - 20
                                                      bufs:bufs
                                        isSingleTermPeriod:isSingleTermPeriod
                                                   isFirst:firstIndex == i];
-                break;
-            }
-            case 21: { // пн +
-                [FTSSearchParameters weekDayprocWithI:i
-                                                words:words
-                                            dayNumber:k - 20
-                                                 bufs:bufs
-                                   isSingleTermPeriod:isSingleTermPeriod
-                                              isFirst:firstIndex == i];
-                break;
-            }
-            case 22: { // вт +
-                [FTSSearchParameters weekDayprocWithI:i
-                                                words:words
-                                            dayNumber:k - 20
-                                                 bufs:bufs
-                                   isSingleTermPeriod:isSingleTermPeriod
-                                              isFirst:firstIndex == i];
-                break;
-            }
-            case 23: { // ср +
-                [FTSSearchParameters weekDayprocWithI:i
-                                                words:words
-                                            dayNumber:k - 20
-                                                 bufs:bufs
-                                   isSingleTermPeriod:isSingleTermPeriod
-                                              isFirst:firstIndex == i];
-                break;
-            }
-            case 24: { // чт +
-                [FTSSearchParameters weekDayprocWithI:i
-                                                words:words
-                                            dayNumber:k - 20
-                                                 bufs:bufs
-                                   isSingleTermPeriod:isSingleTermPeriod
-                                              isFirst:firstIndex == i];
-                break;
-            }
-            case 25: { // пт +
-                [FTSSearchParameters weekDayprocWithI:i
-                                                words:words
-                                            dayNumber:k - 20
-                                                 bufs:bufs
-                                   isSingleTermPeriod:isSingleTermPeriod
-                                              isFirst:firstIndex == i];
-                break;
-            }
-            case 26: { // сб +
-                [FTSSearchParameters weekDayprocWithI:i
-                                                words:words
-                                            dayNumber:k - 20
-                                                 bufs:bufs
-                                   isSingleTermPeriod:isSingleTermPeriod
-                                              isFirst:firstIndex == i];
-                break;
-            }
-            case 27: { // вс +
-                [FTSSearchParameters weekDayprocWithI:i
-                                                words:words
-                                            dayNumber:k - 20
-                                                 bufs:bufs
-                                   isSingleTermPeriod:isSingleTermPeriod
-                                              isFirst:firstIndex == i];
-                break;
-            }
+                    break;
+                }
+                case 24: { // чт +
+                    [FTSSearchParameters weekDayprocWithI:i
+                                                    words:words
+                                                dayNumber:k - 20
+                                                     bufs:bufs
+                                       isSingleTermPeriod:isSingleTermPeriod
+                                                  isFirst:firstIndex == i];
+                    break;
+                }
+                case 25: { // пт +
+                    [FTSSearchParameters weekDayprocWithI:i
+                                                    words:words
+                                                dayNumber:k - 20
+                                                     bufs:bufs
+                                       isSingleTermPeriod:isSingleTermPeriod
+                                                  isFirst:firstIndex == i];
+                    break;
+                }
+                case 26: { // сб +
+                    [FTSSearchParameters weekDayprocWithI:i
+                                                    words:words
+                                                dayNumber:k - 20
+                                                     bufs:bufs
+                                       isSingleTermPeriod:isSingleTermPeriod
+                                                  isFirst:firstIndex == i];
+                    break;
+                }
+                case 27: { // вс +
+                    [FTSSearchParameters weekDayprocWithI:i
+                                                    words:words
+                                                dayNumber:k - 20
+                                                     bufs:bufs
+                                       isSingleTermPeriod:isSingleTermPeriod
+                                                  isFirst:firstIndex == i];
+                    break;
+                }
             default:
                 continue;
         }
@@ -1583,7 +1583,7 @@
 +(BOOL) partialEqualsWith:(NSArray*)target
                       obj:(NSString*)obj {
     if([target containsObject:obj])
-        return YES;
+    return YES;
     return NO;
 }
 
@@ -1594,7 +1594,7 @@
     for(int i = j; i < [words count]; i++) {
         sc = [NSScanner scannerWithString:words[i]];
         if([sc scanFloat:&ff])
-            return i;
+        return i;
     }
     return -1;
 }
