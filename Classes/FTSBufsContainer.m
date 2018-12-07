@@ -11,17 +11,13 @@
 @implementation FTSBufsContainer
 
 //Consctuctor
--(instancetype) initBufsContainerWithBuff:(NSString*)buff
-                                     buft:(NSString*)buft
-                               ignoreYear:(BOOL)ignoreYear {
+-(instancetype) initBufsContainerWithIgnoreYear:(BOOL)ignoreYear {
     if(self = [super init]) {
-        self.buff = buff.mutableCopy;
-        self.buft = buft.mutableCopy;
         self.ignoreYear = ignoreYear;
         
         self.firstParsedYear = NO;
         self.perIndexes = @[].mutableCopy;
-        
+
         // termIdent fill
         self.termIdentifier = [[NSMutableDictionary alloc] init];
         [self.termIdentifier setObject:@1 forKey:@"январь"];
@@ -228,8 +224,6 @@
 }
 
 -(void) clear {
-    self.buff = @"".mutableCopy;
-    self.buft = @"".mutableCopy;
     self.ignoreYear = NO;
     self.firstParsedYear = NO;
 }

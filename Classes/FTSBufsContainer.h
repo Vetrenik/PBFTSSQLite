@@ -10,8 +10,6 @@
 
 @interface FTSBufsContainer : NSObject
 
-@property (nonatomic, strong) NSMutableString* buff;
-@property (nonatomic, strong) NSMutableString* buft;
 @property (nonatomic, assign) BOOL ignoreYear;
 @property (nonatomic, assign) BOOL firstParsedYear;
 @property (nonatomic, strong) NSMutableDictionary* termIdentifier;
@@ -19,9 +17,7 @@
 @property (nonatomic, strong) NSMutableArray* currencyTrigger;
 @property (nonatomic, strong) NSMutableArray* datePartTrigger;
 
--(instancetype)  initBufsContainerWithBuff:(NSString*)buff
-                                      buft:(NSString*)buft
-                                ignoreYear:(BOOL)ignoreYear;
+-(instancetype)  initBufsContainerWithIgnoreYear:(BOOL)ignoreYear;
 
 -(BOOL) isTermCurrencyWithTerm:(NSString*)term;
 
