@@ -269,7 +269,7 @@ static sqlite3_stmt * stmt = nil;
                                                    firstValue:[NSString stringWithFormat:@"%015.2f", self.parameters.first_value]
                                                   secondValue:[[NSString stringWithFormat:@"%015.2f", self.parameters.second_value] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]]
                                                     firstDate:[self dateReformatWithDate:self.parameters.first_date]
-                                                   secondDate:[self dateReformatWithDate:self.parameters.first_date]
+                                                   secondDate:[self dateReformatWithDate:self.parameters.second_date]
                                                      currency:self.parameters.currency];
     return [self searchWithQueryItem:qItem];
 }
