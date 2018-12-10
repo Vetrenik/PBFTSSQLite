@@ -133,12 +133,15 @@ static sqlite3_stmt * stmt = nil;
     NSString * stopfl = @"";
     
     for (NSString * topic in topics) {
+        NSString * bufTopic = topic;
         while (![stopfl isEqualToString:@"null"])
         {
-            NSString * pTopic = [self.topicDict objectForKey:topic];
-            if (![pTopic isEqualToString:@"null"])
+            NSString * pTopic = [self.topicDict objectForKey:bufTopic];
+            NSAssert(pTopic, @"No parent topic for topic %@", bufTopic);
+            if (pTopic&&![pTopic isEqualToString:@"null"])
             {
                 if (![topics containsObject:pTopic]) [topics addObject:pTopic];
+                bufTopic = pTopic;
             }
             else stopfl = pTopic;        }
     }
