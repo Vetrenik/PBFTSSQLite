@@ -54,9 +54,7 @@ static sqlite3_stmt * stmt = nil;
     
     self.databasePath = dbpath;
     [self createDB];
-    self.bufs = [[FTSBufsContainer alloc] initBufsContainerWithBuff:@""
-                                                               buft:@""
-                                                         ignoreYear:NO];
+    self.bufs = [[FTSBufsContainer alloc] initBufsContainerWithIgnoreYear:NO];
     self.parameters = [[FTSSearchParameters alloc] initSearchParametersWithBufs:self.bufs
                                                                         inputed:@""];
     self.stemmer = [[FTSPorter alloc] initStemmer];
@@ -128,6 +126,7 @@ static sqlite3_stmt * stmt = nil;
 
 
 - (NSArray *)setListOfTopicsWithArrayTopicList:(NSArray *)list {
+    
     NSMutableArray * topics = [NSMutableArray new];
     [topics addObjectsFromArray:list];
     NSString * stopfl = @"";
