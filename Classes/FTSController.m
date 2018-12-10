@@ -130,8 +130,9 @@ static sqlite3_stmt * stmt = nil;
     NSMutableArray * topics = [NSMutableArray new];
     [topics addObjectsFromArray:list];
     NSString * stopfl = @"";
-    
+    NSMutableArray * buffArr = [NSMutableArray new];
     for (NSString * topic in topics) {
+        
         NSString * bufTopic = topic;
         while (![stopfl isEqualToString:@"null"])
         {
@@ -139,11 +140,14 @@ static sqlite3_stmt * stmt = nil;
             NSAssert(pTopic, @"No parent topic for topic %@", bufTopic);
             if (pTopic&&![pTopic isEqualToString:@"null"])
             {
-                if (![topics containsObject:pTopic]) [topics addObject:pTopic];
+                if (![topics containsObject:pTopic]) [buffArr addObject:pTopic];
                 bufTopic = pTopic;
             }
-            else stopfl = pTopic;        }
+            else stopfl = pTopic;
+        }
     }
+    
+    [topics addObjectsFromArray:buffArr];
     
     return topics.copy;
 }
@@ -295,24 +299,26 @@ static sqlite3_stmt * stmt = nil;
 }
 
 -(NSString *)dateReformatWithTrueDate:(NSDate *)date {
-    NSDateComponents * components = [[NSCalendar currentCalendar] components:NSCalendarUnitDay | NSCalendarUnitMonth | NSCalendarUnitYear | NSCalendarUnitHour |NSCalendarUnitMinute fromDate:date];
-    
-    NSInteger year = [components year];
-    NSInteger month = [components month];
-    NSInteger day = [components day];
-    NSInteger hour = [components hour];
-    NSInteger minute = [components minute];
-    
-    NSString * monthR = [NSString stringWithFormat:@"%02i", (int)month];
-    NSString * dayR = [NSString stringWithFormat:@"%02i", (int)day];
-    NSString * hourR = [NSString stringWithFormat:@"%02i", (int)hour];
-    NSString * minuteR = [NSString stringWithFormat:@"%02i", (int)minute];
-    
-    NSString * res = [[NSString stringWithFormat:@"%i", (int)year] stringByAppendingString:monthR];
-    res = [res stringByAppendingString:dayR];
-    res = [res stringByAppendingString:hourR];
-    res = [res stringByAppendingString:minuteR];
-    
+    NSString * res =  @"";
+    if (!date) {
+        NSDateComponents * components = [[NSCalendar currentCalendar] components:NSCalendarUnitDay | NSCalendarUnitMonth | NSCalendarUnitYear | NSCalendarUnitHour |NSCalendarUnitMinute fromDate:date];
+        
+        NSInteger year = [components year];
+        NSInteger month = [components month];
+        NSInteger day = [components day];
+        NSInteger hour = [components hour];
+        NSInteger minute = [components minute];
+        
+        NSString * monthR = [NSString stringWithFormat:@"%02i", (int)month];
+        NSString * dayR = [NSString stringWithFormat:@"%02i", (int)day];
+        NSString * hourR = [NSString stringWithFormat:@"%02i", (int)hour];
+        NSString * minuteR = [NSString stringWithFormat:@"%02i", (int)minute];
+        
+        NSString * res = [[NSString stringWithFormat:@"%i", (int)year] stringByAppendingString:monthR];
+        res = [res stringByAppendingString:dayR];
+        res = [res stringByAppendingString:hourR];
+        res = [res stringByAppendingString:minuteR];
+    }
     return res;
 }
 
