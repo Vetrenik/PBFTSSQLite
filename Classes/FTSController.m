@@ -335,10 +335,10 @@ static sqlite3_stmt * stmt = nil;
     
     BOOL hasFirstDate = ![query.first_date isEqualToString:@""];
     BOOL hasSecondDate =![query.second_date isEqualToString:@""];
-    BOOL hasDate = hasFirstDate&&hasSecondDate;
+    BOOL hasDate = hasFirstDate||hasSecondDate;
     BOOL hasFirstValue = ![query.first_value isEqualToString:[NSString stringWithFormat:@"%015.2f", 0.0f]];
     BOOL hasSecondValue = ![query.second_value isEqualToString:@"inf"];
-    BOOL hasValue = hasFirstValue&&hasSecondValue;
+    BOOL hasValue = hasFirstValue||hasSecondValue;
     
     if (!hasSecondValue) query.second_value = @"999999999999999";
     NSString * querySt;
@@ -368,7 +368,7 @@ static sqlite3_stmt * stmt = nil;
                     ORDER BY bm25(search);", query.desc,query.first_date, query.second_date];
     } else { // query if has neither value nor date
         querySt =  [NSString stringWithFormat:@"\
-                    SELECT type, id, desc, value, date, currency, object \
+                    SELECT type, id, desc, value, date, currency, object, bm25(search) \
                     FROM search as s \
                     WHERE s.desc MATCH \'%@\'\
                     ORDER BY bm25(search);", query.desc];
@@ -408,6 +408,8 @@ static sqlite3_stmt * stmt = nil;
                                                                       (const char *) sqlite3_column_text(stmt, 6)]
                                                              options:0 ];
                 
+                double rank = -1.0f*sqlite3_column_double(stmt, 7);
+                
                 id retObj;
                 
                 if (@available(iOS 11.0, *)) {
@@ -420,7 +422,7 @@ static sqlite3_stmt * stmt = nil;
                 FTSItem * item;
                 item = [[FTSItem alloc] initItemWithType:type
                                                       ID:ID
-                                                  topics:[NSArray new]
+                                                  topics:[NSArray arrayWithObjects:[NSString stringWithFormat:@"%015.2f", rank], nil]
                                                     desc:desc
                                                    value:[value floatValue]
                                                     date:[self dateBackReformatWithDate:date]
