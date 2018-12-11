@@ -323,9 +323,13 @@ static sqlite3_stmt * stmt = nil;
 }
 
 -(NSDate *)dateBackReformatWithDate:(NSString *)date {
-    NSDateFormatter * formatter = [NSDateFormatter new];
-    [formatter setDateFormat:@"yyyyMMddHHmm"];
-    NSDate * res = [formatter dateFromString:date];
+    NSDate * res = nil;
+    if (![date isEqualToString:@""]) {
+        NSDateFormatter * formatter = [NSDateFormatter new];
+        [formatter setDateFormat:@"yyyyMMddHHmm"];
+        res = [formatter dateFromString:date];
+        return res;
+    }
     return res;
 }
 
@@ -422,7 +426,7 @@ static sqlite3_stmt * stmt = nil;
                 FTSItem * item;
                 item = [[FTSItem alloc] initItemWithType:type
                                                       ID:ID
-                                                  topics:[NSArray arrayWithObjects:[NSString stringWithFormat:@"%015.2f", rank], nil]
+                                                  topics:[NSArray arrayWithObjects:[NSString stringWithFormat:@"%.3f", rank], nil]
                                                     desc:desc
                                                    value:[value floatValue]
                                                     date:[self dateBackReformatWithDate:date]
