@@ -251,7 +251,7 @@ static sqlite3_stmt * stmt = nil;
 }
 
 -(NSArray<FTSItem *> *) searchWithQueryString:(NSString *)sString {
-    if (!sString&&![sString isEqualToString:@""]) {
+    if ([sString length]>0) {
         self.parameters = [[FTSSearchParameters alloc] initSearchParametersWithBufs:self.bufs
                                                                             inputed:sString];
         
@@ -285,7 +285,7 @@ static sqlite3_stmt * stmt = nil;
                                                        secondDate:[self dateReformatWithDate:self.parameters.second_date]
                                                          currency:self.parameters.currency];
         return [self searchWithQueryItem:qItem];
-    } else return [NSArray arrayWithObjects:[FTSItem new],nil];
+    } else return @[];
 }
 
 -(NSString *)dateReformatWithDate:(NSString *)date {
