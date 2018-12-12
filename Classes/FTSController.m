@@ -107,13 +107,19 @@ static sqlite3_stmt * stmt = nil;
         
         if (sqlite3_open([self.databasePath UTF8String], &searchdb) == SQLITE_OK) {
             char * errMsg;
-            const char * sqlSt = "CREATE VIRTUAL TABLE  search USING fts5(type, id, desc, value, date, currency, object UNINDEXED, tokenize = \'porter ascii\');";
+            const char * sqlSt;
+            
+            if (@available(iOS 11, *)) {
+                sqlSt = "CREATE VIRTUAL TABLE  search USING fts5(type, id, desc, value, date, currency, object UNINDEXED, tokenize = \'porter ascii\');";
+            } else {
+                sqlSt = "CREATE VIRTUAL TABLE  search USING fts3(type, id, desc, value, date, currency, object UNINDEXED, tokenize = porter);";
+            }
             
             if (sqlite3_exec(searchdb, sqlSt, NULL, NULL, &errMsg) == SQLITE_OK) {
                 state = YES;
                 return state;
             } else {
-                NSLog(@"Error on creating fts5 table");
+                NSLog(@"Error on creating fts table");
                 return state;
             }
             
@@ -245,39 +251,41 @@ static sqlite3_stmt * stmt = nil;
 }
 
 -(NSArray<FTSItem *> *) searchWithQueryString:(NSString *)sString {
-    self.parameters = [[FTSSearchParameters alloc] initSearchParametersWithBufs:self.bufs
-                                                                        inputed:sString];
-    
-    self.parameters.query = [[self.stemmer stemSentenceWithString:self.parameters.query] lowercaseString];
-    
-    NSArray * buf = [self.parameters.query componentsSeparatedByString:@" "];
-    NSString * buf1 = @"(";
-    
-    if ([buf count] > 1) {
-        buf1 = [NSString stringWithFormat:@"(%@*", [buf objectAtIndex:0]];
-        for (int i = 1; i < [buf count]; i++) {
-            if (i != [buf count]-1) {
-                buf1 = [NSString stringWithFormat:@"%@ OR %@*", buf1, [buf objectAtIndex:i]];
+    if (!sString&&![sString isEqualToString:@""]) {
+        self.parameters = [[FTSSearchParameters alloc] initSearchParametersWithBufs:self.bufs
+                                                                            inputed:sString];
+        
+        self.parameters.query = [[self.stemmer stemSentenceWithString:self.parameters.query] lowercaseString];
+        
+        NSArray * buf = [self.parameters.query componentsSeparatedByString:@" "];
+        NSString * buf1 = @"(";
+        
+        if ([buf count] > 1) {
+            buf1 = [NSString stringWithFormat:@"(%@*", [buf objectAtIndex:0]];
+            for (int i = 1; i < [buf count]; i++) {
+                if (i != [buf count]-1) {
+                    buf1 = [NSString stringWithFormat:@"%@ OR %@*", buf1, [buf objectAtIndex:i]];
+                } else {
+                    buf1 = [NSString stringWithFormat:@"%@ OR %@*)", buf1, [buf objectAtIndex:i]];
+                }
+            }
+        } else {
+            if ([[buf objectAtIndex:0] length] > 0) {
+                buf1 = [NSString stringWithFormat:@"%@*", [buf objectAtIndex:0]];
             } else {
-                buf1 = [NSString stringWithFormat:@"%@ OR %@*)", buf1, [buf objectAtIndex:i]];
+                buf1 =[buf objectAtIndex:0];
             }
         }
-    } else {
-        if ([[buf objectAtIndex:0] length] > 0) {
-            buf1 = [NSString stringWithFormat:@"%@*", [buf objectAtIndex:0]];
-        } else {
-            buf1 =[buf objectAtIndex:0];
-        }
-    }
-    
-    
-    FTSQueryItem * qItem = [[FTSQueryItem alloc] initWithDesc:buf1
-                                                   firstValue:[NSString stringWithFormat:@"%015.2f", self.parameters.first_value]
-                                                  secondValue:[[NSString stringWithFormat:@"%015.2f", self.parameters.second_value] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]]
-                                                    firstDate:[self dateReformatWithDate:self.parameters.first_date]
-                                                   secondDate:[self dateReformatWithDate:self.parameters.second_date]
-                                                     currency:self.parameters.currency];
-    return [self searchWithQueryItem:qItem];
+        
+        
+        FTSQueryItem * qItem = [[FTSQueryItem alloc] initWithDesc:buf1
+                                                       firstValue:[NSString stringWithFormat:@"%015.2f", self.parameters.first_value]
+                                                      secondValue:[[NSString stringWithFormat:@"%015.2f", self.parameters.second_value] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]]
+                                                        firstDate:[self dateReformatWithDate:self.parameters.first_date]
+                                                       secondDate:[self dateReformatWithDate:self.parameters.second_date]
+                                                         currency:self.parameters.currency];
+        return [self searchWithQueryItem:qItem];
+    } else return [NSArray arrayWithObjects:[FTSItem new],nil];
 }
 
 -(NSString *)dateReformatWithDate:(NSString *)date {
@@ -346,36 +354,69 @@ static sqlite3_stmt * stmt = nil;
     
     if (!hasSecondValue) query.second_value = @"999999999999999";
     NSString * querySt;
-    if (hasValue&&hasDate) {  //if query has both value and date
-        querySt = [NSString stringWithFormat:@"\
-                   SELECT type, id, desc, value, date, currency, object \
-                   FROM search as s \
-                   WHERE s.desc MATCH \'%@\'\
-                   AND s.value BETWEEN \'%@\' AND \'%@\'\
-                   AND s.date BETWEEN \'%@\' AND \'%@\'\
-                   and s.currency = \'%@\'\
-                   ORDER BY bm25(search);", query.desc, query.first_value, query.second_value, query.first_date, query.second_date, query.currency];
-    } else if (hasValue&&!hasDate) { //if query has value but not date
-        querySt = [NSString stringWithFormat:@"\
-                   SELECT type, id, desc, value, date, currency, object \
-                   FROM search as s \
-                   WHERE s.desc MATCH \'%@\'\
-                   AND s.value BETWEEN \'%@\' AND \'%@\'\
-                   and s.currency = \'%@\'\
-                   ORDER BY bm25(search);", query.desc, query.first_value, query.second_value,query.currency];
-    } else if (!hasValue&&hasDate) { //if query has date but not value
-        querySt =  [NSString stringWithFormat:@"\
-                    SELECT type, id, desc, value, date, currency, object \
-                    FROM search as s \
-                    WHERE s.desc MATCH \'%@\'\
-                    AND s.date BETWEEN \'%@\' AND \'%@\'\
-                    ORDER BY bm25(search);", query.desc,query.first_date, query.second_date];
-    } else { // query if has neither value nor date
-        querySt =  [NSString stringWithFormat:@"\
-                    SELECT type, id, desc, value, date, currency, object, bm25(search) \
-                    FROM search as s \
-                    WHERE s.desc MATCH \'%@\'\
-                    ORDER BY bm25(search);", query.desc];
+    if (@available(iOS 11, *)) {
+        
+        
+        if (hasValue&&hasDate) {  //if query has both value and date
+            querySt = [NSString stringWithFormat:@"\
+                       SELECT type, id, desc, value, date, currency, object \
+                       FROM search as s \
+                       WHERE s.desc MATCH \'%@\'\
+                       AND s.value BETWEEN \'%@\' AND \'%@\'\
+                       AND s.date BETWEEN \'%@\' AND \'%@\'\
+                       and s.currency = \'%@\'\
+                       ORDER BY bm25(search);", query.desc, query.first_value, query.second_value, query.first_date, query.second_date, query.currency];
+        } else if (hasValue&&!hasDate) { //if query has value but not date
+            querySt = [NSString stringWithFormat:@"\
+                       SELECT type, id, desc, value, date, currency, object \
+                       FROM search as s \
+                       WHERE s.desc MATCH \'%@\'\
+                       AND s.value BETWEEN \'%@\' AND \'%@\'\
+                       and s.currency = \'%@\'\
+                       ORDER BY bm25(search);", query.desc, query.first_value, query.second_value,query.currency];
+        } else if (!hasValue&&hasDate) { //if query has date but not value
+            querySt =  [NSString stringWithFormat:@"\
+                        SELECT type, id, desc, value, date, currency, object \
+                        FROM search as s \
+                        WHERE s.desc MATCH \'%@\'\
+                        AND s.date BETWEEN \'%@\' AND \'%@\'\
+                        ORDER BY bm25(search);", query.desc,query.first_date, query.second_date];
+        } else { // query if has neither value nor date
+            querySt =  [NSString stringWithFormat:@"\
+                        SELECT type, id, desc, value, date, currency, object, bm25(search) \
+                        FROM search as s \
+                        WHERE s.desc MATCH \'%@\'\
+                        ORDER BY bm25(search);", query.desc];
+        }
+        
+    } else {
+        if (hasValue&&hasDate) {  //if query has both value and date
+            querySt = [NSString stringWithFormat:@"\
+                       SELECT type, id, desc, value, date, currency, object, matchinfo(search) \
+                       FROM search as s \
+                       WHERE s.desc MATCH \'%@\'\
+                       AND s.value BETWEEN \'%@\' AND \'%@\'\
+                       AND s.date BETWEEN \'%@\' AND \'%@\'\
+                       and s.currency = \'%@\';", query.desc, query.first_value, query.second_value, query.first_date, query.second_date, query.currency];
+        } else if (hasValue&&!hasDate) { //if query has value but not date
+            querySt = [NSString stringWithFormat:@"\
+                       SELECT type, id, desc, value, date, currency, object, matchinfo(search) \
+                       FROM search as s \
+                       WHERE s.desc MATCH \'%@\'\
+                       AND s.value BETWEEN \'%@\' AND \'%@\'\
+                       and s.currency = \'%@\';", query.desc, query.first_value, query.second_value,query.currency];
+        } else if (!hasValue&&hasDate) { //if query has date but not value
+            querySt =  [NSString stringWithFormat:@"\
+                        SELECT type, id, desc, value, date, currency, object, matchinfo(search) \
+                        FROM search as s \
+                        WHERE s.desc MATCH \'%@\'\
+                        AND s.date BETWEEN \'%@\' AND \'%@\';", query.desc,query.first_date, query.second_date];
+        } else { // query if has neither value nor date
+            querySt =  [NSString stringWithFormat:@"\
+                        SELECT type, id, desc, value, date, currency, object, matchinfo(search) \
+                        FROM search as s \
+                        WHERE s.desc MATCH \'%@\';", query.desc];
+        }
     }
     
     
