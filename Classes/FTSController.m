@@ -359,7 +359,7 @@ static sqlite3_stmt * stmt = nil;
         
         if (hasValue&&hasDate) {  //if query has both value and date
             querySt = [NSString stringWithFormat:@"\
-                       SELECT type, id, desc, value, date, currency, object \
+                       SELECT type, id, desc, value, date, currency, object, bm25(search) \
                        FROM search as s \
                        WHERE s.desc MATCH \'%@\'\
                        AND s.value BETWEEN \'%@\' AND \'%@\'\
@@ -368,7 +368,7 @@ static sqlite3_stmt * stmt = nil;
                        ORDER BY bm25(search);", query.desc, query.first_value, query.second_value, query.first_date, query.second_date, query.currency];
         } else if (hasValue&&!hasDate) { //if query has value but not date
             querySt = [NSString stringWithFormat:@"\
-                       SELECT type, id, desc, value, date, currency, object \
+                       SELECT type, id, desc, value, date, currency, object, bm25(search) \
                        FROM search as s \
                        WHERE s.desc MATCH \'%@\'\
                        AND s.value BETWEEN \'%@\' AND \'%@\'\
@@ -376,7 +376,7 @@ static sqlite3_stmt * stmt = nil;
                        ORDER BY bm25(search);", query.desc, query.first_value, query.second_value,query.currency];
         } else if (!hasValue&&hasDate) { //if query has date but not value
             querySt =  [NSString stringWithFormat:@"\
-                        SELECT type, id, desc, value, date, currency, object \
+                        SELECT type, id, desc, value, date, currency, object, bm25(search) \
                         FROM search as s \
                         WHERE s.desc MATCH \'%@\'\
                         AND s.date BETWEEN \'%@\' AND \'%@\'\
