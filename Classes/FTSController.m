@@ -308,7 +308,7 @@ static sqlite3_stmt * stmt = nil;
 
 -(NSString *)dateReformatWithTrueDate:(NSDate *)date {
     NSString * res =  @"";
-    if (!date) {
+    if (date != nil) {
         NSDateComponents * components = [[NSCalendar currentCalendar] components:NSCalendarUnitDay | NSCalendarUnitMonth | NSCalendarUnitYear | NSCalendarUnitHour |NSCalendarUnitMinute fromDate:date];
         
         NSInteger year = [components year];
@@ -322,7 +322,7 @@ static sqlite3_stmt * stmt = nil;
         NSString * hourR = [NSString stringWithFormat:@"%02i", (int)hour];
         NSString * minuteR = [NSString stringWithFormat:@"%02i", (int)minute];
         
-        NSString * res = [[NSString stringWithFormat:@"%i", (int)year] stringByAppendingString:monthR];
+        res = [[NSString stringWithFormat:@"%i", (int)year] stringByAppendingString:monthR];
         res = [res stringByAppendingString:dayR];
         res = [res stringByAppendingString:hourR];
         res = [res stringByAppendingString:minuteR];
