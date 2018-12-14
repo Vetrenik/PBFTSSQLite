@@ -14,6 +14,27 @@
 #import "FTSSearchParameters.h"
 #import "FTSBufsContainer.h"
 
+int opendb_for_create(const char *filename, sqlite3 **ppDb)
+{
+    sqlite3_config(SQLITE_CONFIG_MULTITHREAD);
+    int res =  sqlite3_open_v2(filename, ppDb, SQLITE_OPEN_READWRITE|SQLITE_OPEN_FULLMUTEX|SQLITE_OPEN_CREATE, NULL);
+    return res;
+}
+
+int opendb_for_write(const char *filename, sqlite3 **ppDb)
+{
+    sqlite3_config(SQLITE_CONFIG_MULTITHREAD);
+    int res =  sqlite3_open_v2(filename, ppDb, SQLITE_OPEN_READWRITE|SQLITE_OPEN_FULLMUTEX, NULL);
+    return res;
+}
+
+int opendb_for_read(const char *filename, sqlite3 **ppDb)
+{
+    sqlite3_config(SQLITE_CONFIG_MULTITHREAD);
+    int res =  sqlite3_open_v2(filename, ppDb, SQLITE_OPEN_READONLY|SQLITE_OPEN_FULLMUTEX, NULL);
+    return res;
+}
+
 @interface FTSController()
 
 -(BOOL) createDB;
@@ -105,7 +126,8 @@ static sqlite3_stmt * stmt = nil;
     
     if ([fileMgr fileExistsAtPath:self.databasePath] == NO) {
         
-        if (sqlite3_open([self.databasePath UTF8String], &searchdb) == SQLITE_OK) {
+        //if (sqlite3_open([self.databasePath UTF8String], &searchdb) == SQLITE_OK) {
+        if (opendb_for_create([self.databasePath UTF8String], &searchdb) == SQLITE_OK) {
             char * errMsg;
             const char * sqlSt;
             
@@ -218,6 +240,38 @@ static sqlite3_stmt * stmt = nil;
     }
     
     
+    NSArray * descWords = [[item.desc stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]] componentsSeparatedByString:@" "];
+    
+    NSMutableArray * bufer = [NSMutableArray new];
+    [bufer addObject:[descWords objectAtIndex:0]];
+    
+    
+    for (int i = 1; i < [descWords count]; i++ ) {
+        int fl = 0;
+        for (int j = 0; j < [bufer count]; j++) {
+            
+            NSString * w1 = [descWords objectAtIndex:i];
+            NSString * w2 = [bufer objectAtIndex:j];
+            float a = [w1 length]*0.33f;
+            
+            if ([FTSController editlistWithString1:w1 String2:w2] > a) {
+                fl++;
+            }
+            
+            if (fl == [bufer count]) {
+                [bufer addObject:[descWords objectAtIndex:i]];
+            }
+        }
+    }
+    
+    item.desc = @"";
+    for (NSString * str in bufer) {
+        item.desc = [item.desc stringByAppendingString:str];
+        item.desc = [item.desc stringByAppendingString:@" "];
+    }
+    
+    item.desc = [item.desc stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    
     
     
     NSString * value =  [NSString stringWithFormat:@"%015.2f", item.value];
@@ -225,7 +279,10 @@ static sqlite3_stmt * stmt = nil;
     const char * sqlInsert = [sqlSt UTF8String];
     const char * errMsg;
     
-    if (sqlite3_open([self.databasePath UTF8String], &searchdb) == SQLITE_OK) {
+    sqlite3_config(SQLITE_CONFIG_SERIALIZED);
+    
+    //if (sqlite3_open([self.databasePath UTF8String], &searchdb) == SQLITE_OK) {
+    if (opendb_for_write([self.databasePath UTF8String], &searchdb) == SQLITE_OK) {
         sqlite3_prepare_v2(searchdb, sqlInsert, -1, &stmt, &errMsg);
         
         if (sqlite3_step(stmt) ==SQLITE_DONE) {
@@ -252,6 +309,9 @@ static sqlite3_stmt * stmt = nil;
 
 -(NSArray<FTSItem *> *) searchWithQueryString:(NSString *)sString {
     if ([sString length]>0) {
+        
+        sString = [sString stringByReplacingOccurrencesOfString:@"ё" withString:@"е"];
+        
         self.parameters = [[FTSSearchParameters alloc] initSearchParametersWithBufs:self.bufs
                                                                             inputed:sString];
         
@@ -421,7 +481,8 @@ static sqlite3_stmt * stmt = nil;
     
     
     const char * sqlQuery = [querySt UTF8String];
-    if (sqlite3_open([self.databasePath UTF8String], &searchdb) == SQLITE_OK) {
+    //if (sqlite3_open([self.databasePath UTF8String], &searchdb) == SQLITE_OK) {
+    if (opendb_for_read([self.databasePath UTF8String], &searchdb) == SQLITE_OK) {
         if(sqlite3_prepare_v2(searchdb, sqlQuery, -1, &stmt, NULL) == SQLITE_OK) {
             NSString * type;
             NSString * ID;
@@ -481,6 +542,43 @@ static sqlite3_stmt * stmt = nil;
     sqlite3_close(searchdb);
     return resArray.copy;
 }
+
++(int ) editlistWithString1:(NSString *)s1
+                    String2:(NSString *)s2 {
+    NSInteger m = [s1 length];
+    NSInteger n = [s2 length];
+    
+    NSMutableArray<NSNumber *> * D1 = [NSMutableArray new];
+    NSMutableArray<NSNumber *> * D2 = [NSMutableArray arrayWithCapacity:n+1];
+    
+    for (int i = 0; i <= n; i++) [D2 insertObject:[NSNumber numberWithInt:i] atIndex:i];
+    
+    for (int i = 0; i <= m; i++) {\
+        D1 = D2;
+        D2 = [NSMutableArray arrayWithCapacity:n+1];
+        for (int j = 0; j <= n; j ++) {
+            if (j == 0) {
+                [D2 insertObject:[NSNumber numberWithInt:i] atIndex:j];
+            } else {
+                int cost;
+                if (i > 0) {
+                    cost = ([s1 characterAtIndex:i-1] != [s2 characterAtIndex:j-1] ? 1 : 0);
+                } else {
+                    cost = 1;
+                }
+                if (([D2 objectAtIndex:j-1] < [D1 objectAtIndex:j]) && ([D2 objectAtIndex:j-1] < ([NSNumber numberWithInt:([[D1 objectAtIndex:j-1] intValue] + cost)] )) ) {
+                    [D2 insertObject:[NSNumber numberWithInt:([[D2 objectAtIndex:j-1] intValue] + 1)] atIndex:j];
+                } else if ([D1 objectAtIndex:j] < [NSNumber numberWithInt:([[D1 objectAtIndex:j-1] intValue] + cost)]) [D2 insertObject:[NSNumber numberWithInt:([[D1 objectAtIndex:j] intValue] + 1)] atIndex:j];
+                else [D2 insertObject:[NSNumber numberWithInt:([[D1 objectAtIndex:j-1] intValue] + cost)] atIndex:j];
+            }
+            
+        }
+    }
+    
+    
+    return [[D2 objectAtIndex:n] intValue];
+}
+
 
 
 @end
