@@ -227,17 +227,16 @@ static sqlite3_stmt * stmt = nil;
     
     item.desc = [item.desc lowercaseString];
     
-    NSString * object= @"";
+    NSData * objectData;
     
     if ([item.object conformsToProtocol:@protocol(NSCoding)]) {
         if (@available(iOS 11.0, *)) {
-            NSData * objectData = [NSKeyedArchiver archivedDataWithRootObject:item.object
-                                                        requiringSecureCoding:YES
-                                                                        error:nil];
-            object = [objectData base64EncodedStringWithOptions:0];
+            objectData = [NSKeyedArchiver archivedDataWithRootObject:item.object
+                                               requiringSecureCoding:YES
+                                                               error:nil];
         } else {
-            NSData * objectData = [NSKeyedArchiver archivedDataWithRootObject:item.object];
-            object = [objectData base64EncodedStringWithOptions:0];
+            objectData = [NSKeyedArchiver archivedDataWithRootObject:item.object];
+            
         }
     } else {
         NSLog(@"Error on indexing object of class %@ with type: %@ with id: %@, \n Object doesn't conforms to protocol: NSCoding", NSStringFromClass([item.object class]),item.type, item.ID);
@@ -279,36 +278,52 @@ static sqlite3_stmt * stmt = nil;
     
     
     NSString * value =  [NSString stringWithFormat:@"%015.2f", item.value];
-    NSString * sqlSt = [NSString stringWithFormat:@"INSERT OR REPLACE INTO search (rowid, type, id, desc, value, date, currency) values ((select rowid from search where id = \'%@\' and type = \'%@\'),\"%@\", \"%@\", \"%@\", \"%@\", \"%@\", \"%@\")",item.ID, item.type, item.type, item.ID, item.desc, value, date, item.currency];
+    // NSString * sqlSt = [NSString stringWithFormat:@"INSERT OR REPLACE INTO search (rowid, type, id, desc, value, date, currency) values ((select rowid from search where id = \'%@\' and type = \'%@\'),\"%@\", \"%@\", \"%@\", \"%@\", \"%@\", \"%@\")",item.ID, item.type, item.type, item.ID, item.desc, value, date, item.currency];
+    NSString * sqlSt = @"INSERT OR REPLACE INTO search (rowid, type, id, desc, value, date, currency)\
+    values ((select rowid from search where id = ? and type = ?), ?, ?, ?, ?, ?, ?)";
     const char * sqlInsert = [sqlSt UTF8String];
     const char * errMsg;
     
     sqlite3_config(SQLITE_CONFIG_SERIALIZED);
     
-    //if (sqlite3_open([self.databasePath UTF8String], &searchdb) == SQLITE_OK) {
     if (opendb_for_write([self.databasePath UTF8String], &searchdb) == SQLITE_OK) {
-        sqlite3_prepare_v2(searchdb, sqlInsert, -1, &stmt, &errMsg);
-        
-        if (sqlite3_step(stmt) ==SQLITE_DONE) {
-            
-            sqlSt = [NSString stringWithFormat:@"INSERT OR REPLACE INTO objects (rowid, type, id, object) \
-                     values ((select rowid from search where id = \'%@\' and type = \'%@\'),\"%@\", \"%@\", \"%@\")",
-                     item.ID, item.type, item.ID, item.type, [item.object string]];
-            sqlInsert = [sqlSt UTF8String];
-            
-            sqlite3_prepare_v2(searchdb, sqlInsert, -1, &stmt, &errMsg);
-            
+        if (sqlite3_prepare_v2(searchdb, sqlInsert, -1, &stmt, &errMsg) == SQLITE_OK) {
+            sqlite3_bind_text(stmt, 1, [item.ID UTF8String], -1, SQLITE_STATIC);
+            sqlite3_bind_text(stmt, 2, [item.type UTF8String], -1, SQLITE_STATIC);
+            sqlite3_bind_text(stmt, 3, [item.type UTF8String], -1, SQLITE_STATIC);
+            sqlite3_bind_text(stmt, 4, [item.ID UTF8String], -1, SQLITE_STATIC);
+            sqlite3_bind_text(stmt, 5, [item.desc UTF8String], -1, SQLITE_STATIC);
+            sqlite3_bind_text(stmt, 6, [value UTF8String], -1, SQLITE_STATIC);
+            sqlite3_bind_text(stmt, 7, [date UTF8String], -1, SQLITE_STATIC);
+            sqlite3_bind_text(stmt, 8, [item.currency UTF8String], -1, SQLITE_STATIC);
             
             if (sqlite3_step(stmt) ==SQLITE_DONE) {
-                state = YES;
-                sqlite3_reset(stmt);
-                sqlite3_close(searchdb);
-                sqlite3_db_release_memory(searchdb);
-                return state;
+                
+                //   sqlSt = [NSString stringWithFormat:@"INSERT OR REPLACE INTO objects (rowid, type, id, object) \
+                values ((select rowid from search where id = \'%@\' and type = \'%@\'),\"%@\", \"%@\", \"%@\")", item.ID, item.type, item.ID, item.type, [item.object string]];
+                sqlSt = @"INSERT OR REPLACE INTO objects (rowid, type, id, object) \
+                values ((select rowid from search where id = ? and type = ?), ?, ?, ?)";
+                sqlInsert = [sqlSt UTF8String];
+                
+                if (sqlite3_prepare_v2(searchdb, sqlInsert, -1, &stmt, &errMsg) == SQLITE_OK) {
+                    sqlite3_bind_text(stmt, 1, [item.ID UTF8String], -1, SQLITE_STATIC);
+                    sqlite3_bind_text(stmt, 2, [item.type UTF8String], -1, SQLITE_STATIC);
+                    sqlite3_bind_text(stmt, 3, [item.type UTF8String], -1, SQLITE_STATIC);
+                    sqlite3_bind_text(stmt, 4, [item.ID UTF8String], -1, SQLITE_STATIC);
+                    sqlite3_bind_blob(stmt, 5, [objectData bytes], (int)[objectData length], SQLITE_STATIC);
+                    
+                    if (sqlite3_step(stmt) ==SQLITE_DONE) {
+                        state = YES;
+                        sqlite3_reset(stmt);
+                        sqlite3_close(searchdb);
+                        sqlite3_db_release_memory(searchdb);
+                        return state;
+                    }
+                }
+                
             }
+            sqlite3_reset(stmt);
         }
-        sqlite3_reset(stmt);
-        
     } else {
         NSLog(@"Error on inserting into search table");
     }
