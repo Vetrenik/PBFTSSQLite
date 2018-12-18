@@ -26,12 +26,12 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, strong) id object;
 
 -(instancetype) initItemWithType:(NSString *)type
-                             ID:(NSString *)ID
-                         topics:(NSArray<NSString *> *)topicList
-                           desc:(NSString *)desc
-                          value:(float)value
-                           date:(NSDate *)date
-                       currency:(NSString *)currency
+                              ID:(NSString *)ID
+                          topics:(NSArray<NSString *> *)topicList
+                            desc:(NSString *)desc
+                           value:(float)value
+                            date:(NSDate * _Nullable)date
+                        currency:(NSString *)currency
                           object:(id)object;
 
 @end

@@ -132,16 +132,21 @@ static sqlite3_stmt * stmt = nil;
             const char * sqlSt;
             
             if (@available(iOS 11, *)) {
-                sqlSt = "CREATE VIRTUAL TABLE  search USING fts5(type, id, desc, value, date, currency, object UNINDEXED, tokenize = \'porter ascii\');";
+                sqlSt = "CREATE VIRTUAL TABLE  search USING fts5(type, id, desc, value, date, currency, tokenize = \'porter ascii\');";
             } else {
-                sqlSt = "CREATE VIRTUAL TABLE  search USING fts3(type, id, desc, value, date, currency, object UNINDEXED, tokenize = porter);";
+                sqlSt = "CREATE VIRTUAL TABLE  search USING fts3(type, id, desc, value, date, currency, tokenize = porter);";
             }
             
             if (sqlite3_exec(searchdb, sqlSt, NULL, NULL, &errMsg) == SQLITE_OK) {
-                state = YES;
-                return state;
+                sqlSt = "CREATE TABLE objects (\
+                type TEXT,\
+                id TEXT, \
+                object BLOB);";
+                if (sqlite3_exec(searchdb, sqlSt, NULL, NULL, &errMsg) == SQLITE_OK) {
+                    state = YES;
+                    return state;
+                }
             } else {
-                NSLog(@"Error on creating fts table");
                 return state;
             }
             
@@ -273,9 +278,8 @@ static sqlite3_stmt * stmt = nil;
     item.desc = [item.desc stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
     
     
-    
     NSString * value =  [NSString stringWithFormat:@"%015.2f", item.value];
-    NSString * sqlSt = [NSString stringWithFormat:@"INSERT OR REPLACE INTO search (rowid, type, id, desc, value, date, currency, object) values ((select rowid from search where id = \'%@\' and type = \'%@\'),\"%@\", \"%@\", \"%@\", \"%@\", \"%@\", \"%@\", \"%@\")",item.ID, item.type, item.type, item.ID, item.desc, value, date, item.currency, object];
+    NSString * sqlSt = [NSString stringWithFormat:@"INSERT OR REPLACE INTO search (rowid, type, id, desc, value, date, currency) values ((select rowid from search where id = \'%@\' and type = \'%@\'),\"%@\", \"%@\", \"%@\", \"%@\", \"%@\", \"%@\")",item.ID, item.type, item.type, item.ID, item.desc, value, date, item.currency];
     const char * sqlInsert = [sqlSt UTF8String];
     const char * errMsg;
     
@@ -286,9 +290,22 @@ static sqlite3_stmt * stmt = nil;
         sqlite3_prepare_v2(searchdb, sqlInsert, -1, &stmt, &errMsg);
         
         if (sqlite3_step(stmt) ==SQLITE_DONE) {
-            state = YES;
-            sqlite3_close(searchdb);
-            return state;
+            
+            sqlSt = [NSString stringWithFormat:@"INSERT OR REPLACE INTO objects (rowid, type, id, object) \
+                     values ((select rowid from search where id = \'%@\' and type = \'%@\'),\"%@\", \"%@\", \"%@\")",
+                     item.ID, item.type, item.ID, item.type, [item.object string]];
+            sqlInsert = [sqlSt UTF8String];
+            
+            sqlite3_prepare_v2(searchdb, sqlInsert, -1, &stmt, &errMsg);
+            
+            
+            if (sqlite3_step(stmt) ==SQLITE_DONE) {
+                state = YES;
+                sqlite3_reset(stmt);
+                sqlite3_close(searchdb);
+                sqlite3_db_release_memory(searchdb);
+                return state;
+            }
         }
         sqlite3_reset(stmt);
         
@@ -419,63 +436,79 @@ static sqlite3_stmt * stmt = nil;
         
         if (hasValue&&hasDate) {  //if query has both value and date
             querySt = [NSString stringWithFormat:@"\
-                       SELECT type, id, desc, value, date, currency, object, bm25(search) \
-                       FROM search as s \
+                       SELECT s.type, s.id, s.desc, s.value, s.date, s.currency, o.object, bm25(search) \
+                       FROM search as s, objects as o \
                        WHERE s.desc MATCH \'%@\'\
                        AND s.value BETWEEN \'%@\' AND \'%@\'\
                        AND s.date BETWEEN \'%@\' AND \'%@\'\
                        and s.currency = \'%@\'\
+                       AND o.type = s.type \
+                       AND o.id = s.id \
                        ORDER BY bm25(search);", query.desc, query.first_value, query.second_value, query.first_date, query.second_date, query.currency];
         } else if (hasValue&&!hasDate) { //if query has value but not date
             querySt = [NSString stringWithFormat:@"\
-                       SELECT type, id, desc, value, date, currency, object, bm25(search) \
-                       FROM search as s \
+                       SELECT s.type, s.id, s.desc, s.value, s.date, s.currency, o.object, bm25(search) \
+                       FROM search as s, objects as o \
                        WHERE s.desc MATCH \'%@\'\
                        AND s.value BETWEEN \'%@\' AND \'%@\'\
                        and s.currency = \'%@\'\
+                       AND o.type = s.type \
+                       AND o.id = s.id \
                        ORDER BY bm25(search);", query.desc, query.first_value, query.second_value,query.currency];
         } else if (!hasValue&&hasDate) { //if query has date but not value
             querySt =  [NSString stringWithFormat:@"\
-                        SELECT type, id, desc, value, date, currency, object, bm25(search) \
-                        FROM search as s \
+                        SELECT s.type, s.id, s.desc, s.value, s.date, s.currency, o.object, bm25(search) \
+                        FROM search as s, objects as o \
                         WHERE s.desc MATCH \'%@\'\
                         AND s.date BETWEEN \'%@\' AND \'%@\'\
+                        AND o.type = s.type \
+                        AND o.id = s.id \
                         ORDER BY bm25(search);", query.desc,query.first_date, query.second_date];
         } else { // query if has neither value nor date
             querySt =  [NSString stringWithFormat:@"\
-                        SELECT type, id, desc, value, date, currency, object, bm25(search) \
-                        FROM search as s \
+                        SELECT s.type, s.id, s.desc, s.value, s.date, s.currency, o.object, bm25(search) \
+                        FROM search as s, objects as o \
                         WHERE s.desc MATCH \'%@\'\
+                        AND o.type = s.type \
+                        AND o.id = s.id \
                         ORDER BY bm25(search);", query.desc];
         }
         
     } else {
         if (hasValue&&hasDate) {  //if query has both value and date
             querySt = [NSString stringWithFormat:@"\
-                       SELECT type, id, desc, value, date, currency, object, matchinfo(search) \
-                       FROM search as s \
+                       SELECT s.type, s.id, s.desc, s.value, s.date, s.currency, o.object, matchinfo(search) \
+                       FROM search as s, objects as o \
                        WHERE s.desc MATCH \'%@\'\
                        AND s.value BETWEEN \'%@\' AND \'%@\'\
                        AND s.date BETWEEN \'%@\' AND \'%@\'\
-                       and s.currency = \'%@\';", query.desc, query.first_value, query.second_value, query.first_date, query.second_date, query.currency];
+                       AND s.currency = \'%@\' \
+                       AND o.type = s.type \
+                       AND o.id = s.id;", query.desc, query.first_value, query.second_value, query.first_date, query.second_date, query.currency];
         } else if (hasValue&&!hasDate) { //if query has value but not date
             querySt = [NSString stringWithFormat:@"\
-                       SELECT type, id, desc, value, date, currency, object, matchinfo(search) \
-                       FROM search as s \
+                       SELECT s.type, s.id, s.desc, s.value, s.date, s.currency, o.object, matchinfo(search)  \
+                       FROM search as s, objects as o \
                        WHERE s.desc MATCH \'%@\'\
                        AND s.value BETWEEN \'%@\' AND \'%@\'\
-                       and s.currency = \'%@\';", query.desc, query.first_value, query.second_value,query.currency];
+                       AND s.currency = \'%@\'\
+                       AND o.type = s.type \
+                       AND o.id = s.id;", query.desc, query.first_value, query.second_value,query.currency];
         } else if (!hasValue&&hasDate) { //if query has date but not value
             querySt =  [NSString stringWithFormat:@"\
-                        SELECT type, id, desc, value, date, currency, object, matchinfo(search) \
-                        FROM search as s \
+                        SELECT s.type, s.id, s.desc, s.value, s.date, s.currency, o.object, matchinfo(search)  \
+                        FROM search as s, objects as o \
                         WHERE s.desc MATCH \'%@\'\
-                        AND s.date BETWEEN \'%@\' AND \'%@\';", query.desc,query.first_date, query.second_date];
+                        AND s.date BETWEEN \'%@\' AND \'%@\'\
+                        AND o.type = s.type \
+                        AND o.id = s.id;", query.desc,query.first_date, query.second_date];
         } else { // query if has neither value nor date
             querySt =  [NSString stringWithFormat:@"\
-                        SELECT type, id, desc, value, date, currency, object, matchinfo(search) \
-                        FROM search as s \
-                        WHERE s.desc MATCH \'%@\';", query.desc];
+                        SELECT s.type, s.id, s.desc, s.value, s.date, s.currency, o.object, matchinfo(search)  \
+                        FROM search as s, objects as o \
+                        WHERE s.desc MATCH \'%@\'\
+                        AND o.type = s.type \
+                        AND o.id = s.id;", query.desc];
         }
     }
     
@@ -510,9 +543,9 @@ static sqlite3_stmt * stmt = nil;
                 currency = [[NSString alloc] initWithUTF8String:
                             (const char *) sqlite3_column_text(stmt, 5)];
                 
-                object = [[NSData alloc] initWithBase64EncodedString:[[NSString alloc] initWithUTF8String:
-                                                                      (const char *) sqlite3_column_text(stmt, 6)]
-                                                             options:0 ];
+                NSInteger size = sqlite3_column_bytes(stmt, 6);
+                
+                object = [[NSData alloc] initWithBytes:sqlite3_column_blob(stmt, 6) length:size];
                 
                 double rank = -1.0f*sqlite3_column_double(stmt, 7);
                 
