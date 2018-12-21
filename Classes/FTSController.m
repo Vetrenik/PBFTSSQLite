@@ -189,108 +189,21 @@ static sqlite3 * searchdb = nil;
 }
 
 
+
 -(BOOL) indexOneRecordWithItem:(FTSItem *)item {
     
     BOOL state = NO;
     
     @synchronized (self) {
         
-        NSRegularExpression * spec = [NSRegularExpression regularExpressionWithPattern:@"\\p{P}"
-                                                                               options:NSRegularExpressionCaseInsensitive
-                                                                                 error:nil];
-        NSRegularExpression * spacer = [NSRegularExpression regularExpressionWithPattern:@"\\s+"
-                                                                                 options:NSRegularExpressionCaseInsensitive
-                                                                                   error:nil];
-        item.desc = [spec stringByReplacingMatchesInString:item.desc
-                                                   options:0
-                                                     range:NSMakeRange(0, [item.desc length])
-                                              withTemplate:@" "];
-        
-        item.desc = [spacer stringByReplacingMatchesInString:item.desc
-                                                     options:0
-                                                       range:NSMakeRange(0, [item.desc length])
-                                                withTemplate:@" "];
-        
-        
-        //stemming of the item's description
-        item.desc = [self.stemmer stemSentenceWithString:item.desc];
-        
         //reformating the item's date from dd/MM/yyyy mm:HH to yyyyMMddHHmm format
         NSString * date = [self dateReformatWithTrueDate:item.date];
         
-        //making the custom set of topics for item in order to it's base topic
-        item.topicList = [self setListOfTopicsWithArrayTopicList:item.topicList];
-        
-        //making the custom description based on item's set of topics
-        for (NSString * topic in item.topicList) {
-            NSString * buf = @"";
-            NSArray * descs = [self.topicDescDict objectForKey:topic];
-            for (NSString * desc in descs) {
-                buf = [buf stringByAppendingString:[desc stringByAppendingString:@" "]];
-            }
-            item.desc = [item.desc stringByAppendingString:[@" " stringByAppendingString:buf]];
-        }
-        
-        item.desc = [item.desc lowercaseString];
-        
-        /*
-         NSString * object= @"";
-         
-         if ([item.object conformsToProtocol:@protocol(NSCoding)]) {
-         if (@available(iOS 11.0, *)) {
-         NSData * objectData = [NSKeyedArchiver archivedDataWithRootObject:item.object
-         requiringSecureCoding:YES
-         error:nil];
-         object = [objectData base64EncodedStringWithOptions:0];
-         } else {
-         NSData * objectData = [NSKeyedArchiver archivedDataWithRootObject:item.object];
-         object = [objectData base64EncodedStringWithOptions:0];
-         }
-         } else {
-         NSLog(@"Error on indexing object of class %@ with type: %@ with id: %@, \n Object doesn't conforms to protocol: NSCoding", NSStringFromClass([item.object class]),item.type, item.ID);
-         @throw NSInternalInconsistencyException;
-         }
-         */
-        
-        /*
-         NSArray * descWords = [[item.desc stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]] componentsSeparatedByString:@" "];
-         
-         NSMutableArray * bufer = [NSMutableArray new];
-         [bufer addObject:[descWords objectAtIndex:0]];
-         
-         
-         for (int i = 1; i < [descWords count]; i++ ) {
-         int fl = 0;
-         for (int j = 0; j < [bufer count]; j++) {
-         
-         NSString * w1 = [descWords objectAtIndex:i];
-         NSString * w2 = [bufer objectAtIndex:j];
-         float a = [w1 length]*0.33f;
-         
-         if ([FTSController editlistWithString1:w1 String2:w2] > a) {
-         fl++;
-         }
-         
-         if (fl == [bufer count]) {
-         [bufer addObject:[descWords objectAtIndex:i]];
-         }
-         }
-         }
-         
-         item.desc = @"";
-         for (NSString * str in bufer) {
-         item.desc = [item.desc stringByAppendingString:str];
-         item.desc = [item.desc stringByAppendingString:@" "];
-         }
-         
-         item.desc = [item.desc stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
-         */
-        
+        item.desc = [self processItemDesc:item.desc
+                             andTopicList:item.topicList];
         
         NSString * value =  [NSString stringWithFormat:@"%015.2f", item.value];
         const char * errMsg;
-        
-        //sqlite3_config(SQLITE_CONFIG_SERIALIZED);
         
         if (opendb_for_write([self.databasePath UTF8String], &searchdb) != SQLITE_OK) {
             [self errorStatement:@"Database open" withError:sqlite3_errmsg(searchdb)];
@@ -302,14 +215,9 @@ static sqlite3 * searchdb = nil;
             if (state != SQLITE_OK) {
                 [self errorStatement:sqlSt withError:errMsg];
             } else {
-                sqlite3_bind_text(stmt, 1, [item.ID UTF8String],       -1, SQLITE_STATIC);
-                sqlite3_bind_text(stmt, 2, [item.type UTF8String],     -1, SQLITE_STATIC);
-                sqlite3_bind_text(stmt, 3, [item.type UTF8String],     -1, SQLITE_STATIC);
-                sqlite3_bind_text(stmt, 4, [item.ID UTF8String],       -1, SQLITE_STATIC);
-                sqlite3_bind_text(stmt, 5, [item.desc UTF8String],     -1, SQLITE_STATIC);
-                sqlite3_bind_text(stmt, 6, [value UTF8String],         -1, SQLITE_STATIC);
-                sqlite3_bind_text(stmt, 7, [date UTF8String],          -1, SQLITE_STATIC);
-                sqlite3_bind_text(stmt, 8, [item.currency UTF8String], -1, SQLITE_STATIC);
+                NSArray * insArr = [NSArray arrayWithObjects:item.ID, item.type, item.type, item.ID, item.desc, value, date, item.currency, nil];
+                [FTSController bindData:insArr
+                                 toStmt:stmt];
                 
                 if (sqlite3_step(stmt) == SQLITE_DONE) {
                     
@@ -326,12 +234,9 @@ static sqlite3 * searchdb = nil;
                         if (state != SQLITE_OK) {
                             [self errorStatement:sqlSt withError:errMsg];
                         } else {
-                            sqlite3_bind_text(stmt, 1, [item.ID UTF8String], -1, SQLITE_STATIC);
-                            sqlite3_bind_text(stmt, 2, [item.type UTF8String], -1, SQLITE_STATIC);
-                            sqlite3_bind_text(stmt, 3, [item.type UTF8String], -1, SQLITE_STATIC);
-                            sqlite3_bind_text(stmt, 4, [item.ID UTF8String], -1, SQLITE_STATIC);
-                            sqlite3_bind_blob(stmt, 5, objectData.bytes, objectData.length, SQLITE_STATIC);
-                            // exec
+                            NSArray * insArr = [NSArray arrayWithObjects:item.ID, item.type, item.type, item.ID, objectData ,nil];
+                            [FTSController bindData:insArr
+                                             toStmt:stmt];
                             if (sqlite3_step(stmt) == SQLITE_DONE) {
                                 state = YES;
                                 
@@ -340,12 +245,114 @@ static sqlite3 * searchdb = nil;
                     }
                 }
             }
-            //sqlite3_reset(stmt);
             sqlite3_finalize(stmt);
             stmt = NULL;
         }
     }
     return state;
+}
+
+-(NSString *) processItemDesc:(NSString *)desc
+                 andTopicList:(NSArray *)topicList{
+    NSRegularExpression * spec = [NSRegularExpression regularExpressionWithPattern:@"\\p{P}"
+                                                                           options:NSRegularExpressionCaseInsensitive
+                                                                             error:nil];
+    NSRegularExpression * spacer = [NSRegularExpression regularExpressionWithPattern:@"\\s+"
+                                                                             options:NSRegularExpressionCaseInsensitive
+                                                                               error:nil];
+    desc = [spec stringByReplacingMatchesInString:desc
+                                          options:0
+                                            range:NSMakeRange(0, [desc length])
+                                     withTemplate:@" "];
+    
+    desc = [spacer stringByReplacingMatchesInString:desc
+                                            options:0
+                                              range:NSMakeRange(0, [desc length])
+                                       withTemplate:@" "];
+    
+    
+    //stemming of the item's description
+    desc = [self.stemmer stemSentenceWithString:desc];
+    
+    //making the custom set of topics for item in order to it's base topic
+    topicList = [self setListOfTopicsWithArrayTopicList:topicList];
+    
+    //making the custom description based on item's set of topics
+    for (NSString * topic in topicList) {
+        NSString * buf = @"";
+        NSArray * descs = [self.topicDescDict objectForKey:topic];
+        for (NSString * desc in descs) {
+            buf = [buf stringByAppendingString:[desc stringByAppendingString:@" "]];
+        }
+        desc = [desc stringByAppendingString:[@" " stringByAppendingString:buf]];
+    }
+    
+    desc = [self LevensteinFilterWithDesc:[desc lowercaseString]];
+    
+    return [desc lowercaseString];
+}
+
++(void) bindData:(NSArray *)data
+          toStmt:(sqlite3_stmt *)stmt {
+    for (int i = 0; i < [data count]; i++) {
+        if ([[data objectAtIndex:i] isKindOfClass:[NSString class]]) {
+            sqlite3_bind_text(stmt, i+1, [[data objectAtIndex:i] UTF8String], -1, SQLITE_STATIC);
+        } else if ([[data objectAtIndex:i] isKindOfClass:[NSData class]]) {
+            NSData * objectData = [data objectAtIndex:i];
+            sqlite3_bind_blob(stmt, i+1, objectData.bytes, (int) objectData.length, SQLITE_STATIC);
+        } else {
+            NSLog(@"unsupported class in FtsController.BindDataToStmtWithData \
+                  in object of type %@ with id%@ on interation %i", [data objectAtIndex:0], [data objectAtIndex:1], i);
+        }
+        
+    }
+}
+
+-(NSString *) LevensteinFilterWithDesc:(NSString *)desc {
+    NSArray * descWords = [[desc stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]] componentsSeparatedByString:@" "];
+    
+    NSMutableArray * bufer = [NSMutableArray new];
+    
+    for (int i = 0; i < [descWords count]; i ++) {
+        NSString * w1 = [descWords objectAtIndex:i];
+        float a = [w1 length]*0.33f;
+        for (int j = i+1; j<[descWords count];j++) {
+            NSString * w2 = [descWords objectAtIndex:j];
+            
+            if ([self editlistWithString1:w1 String2:w2] < a) {
+                break;
+            }
+            
+            if (j == [descWords count] - 1) {
+                [bufer addObject:w1];
+            }
+        }
+    }
+    
+    //     [bufer addObject:[descWords objectAtIndex:0]];
+    //
+    //
+    //     for (int i = 1; i < [descWords count]; i++ ) {
+    //     int fl = 0;
+    //     for (int j = 0; j < [bufer count]; j++) {
+    //
+    //     NSString * w1 = [descWords objectAtIndex:i];
+    //     NSString * w2 = [bufer objectAtIndex:j];
+    //     float a = [w1 length]*0.33f;
+    //
+    //     if ([FTSController editlistWithString1:w1 String2:w2] > a) {
+    //     fl++;
+    //     }
+    //
+    //     if (fl == [bufer count]) {
+    //     [bufer addObject:[descWords objectAtIndex:i]];
+    //     }
+    //     }
+    //     }
+    //
+    desc = [bufer componentsJoinedByString:@" "];
+    
+    return desc;
 }
 
 -(BOOL) indexRecordsWithArrayOfItems:(NSArray *)iArray {
@@ -364,30 +371,21 @@ static sqlite3 * searchdb = nil;
         self.parameters = [[FTSSearchParameters alloc] initSearchParametersWithBufs:self.bufs
                                                                             inputed:sString];
         
-        self.parameters.query = [[self.stemmer stemSentenceWithString:self.parameters.query] lowercaseString];
+        NSArray * queryStrBuf = [[[self.stemmer stemSentenceWithString:self.parameters.query] lowercaseString] componentsSeparatedByString:@" "];
+        NSString * queryStr;
         
-        NSArray * buf = [self.parameters.query componentsSeparatedByString:@" "];
-        NSString * buf1 = @"(";
-        
-        if ([buf count] > 1) {
-            buf1 = [NSString stringWithFormat:@"(%@*", [buf objectAtIndex:0]];
-            for (int i = 1; i < [buf count]; i++) {
-                if (i != [buf count]-1) {
-                    buf1 = [NSString stringWithFormat:@"%@ OR %@*", buf1, [buf objectAtIndex:i]];
-                } else {
-                    buf1 = [NSString stringWithFormat:@"%@ OR %@*)", buf1, [buf objectAtIndex:i]];
-                }
-            }
+        if ([queryStrBuf count] > 1) {
+            queryStr = [queryStrBuf componentsJoinedByString:@"* OR "];
+            queryStr = [NSString stringWithFormat:@"(%@)", queryStr];
         } else {
-            if ([[buf objectAtIndex:0] length] > 0) {
-                buf1 = [NSString stringWithFormat:@"%@*", [buf objectAtIndex:0]];
+            if ([[queryStrBuf objectAtIndex:0] length] > 0) {
+                queryStr = [NSString stringWithFormat:@"%@*", [queryStrBuf objectAtIndex:0]];
             } else {
-                buf1 =[buf objectAtIndex:0];
+                queryStr =[queryStrBuf objectAtIndex:0];
             }
         }
         
-        
-        FTSQueryItem * qItem = [[FTSQueryItem alloc] initWithDesc:buf1
+        FTSQueryItem * qItem = [[FTSQueryItem alloc] initWithDesc:queryStr
                                                        firstValue:[NSString stringWithFormat:@"%015.2f", self.parameters.first_value]
                                                       secondValue:[[NSString stringWithFormat:@"%015.2f", self.parameters.second_value] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]]
                                                         firstDate:[self dateReformatWithDate:self.parameters.first_date]
@@ -531,7 +529,6 @@ static sqlite3 * searchdb = nil;
     
     
     const char * sqlQuery = [querySt UTF8String];
-    //if (sqlite3_open([self.databasePath UTF8String], &searchdb) == SQLITE_OK) {
     if (opendb_for_read([self.databasePath UTF8String], &searchdb) == SQLITE_OK) {
         if(sqlite3_prepare_v2(searchdb, sqlQuery, -1, &stmt, NULL) == SQLITE_OK) {
             NSString * type;
@@ -540,30 +537,40 @@ static sqlite3 * searchdb = nil;
             NSString * value;
             NSString * date;
             NSString * currency;
-            NSData * object;
+            
             while(sqlite3_step(stmt) == SQLITE_ROW) {
-                type = [[NSString alloc] initWithUTF8String:
-                        (const char *) sqlite3_column_text(stmt, 0)];
-                
-                ID = [[NSString alloc] initWithUTF8String:
-                      (const char *) sqlite3_column_text(stmt, 1)];
-                
-                desc = [[NSString alloc] initWithUTF8String:
-                        (const char *) sqlite3_column_text(stmt, 2)];
-                
-                value = [[NSString alloc] initWithUTF8String:
-                         (const char *) sqlite3_column_text(stmt, 3)];
-                
-                date = [[NSString alloc] initWithUTF8String:
-                        (const char *) sqlite3_column_text(stmt, 4)];
-                
-                currency = [[NSString alloc] initWithUTF8String:
-                            (const char *) sqlite3_column_text(stmt, 5)];
-                
+                if (![self putDataWithID:0
+                                fromStmt:stmt
+                              intoString:&type]) {
+                    continue;
+                }
+                if (![self putDataWithID:1
+                                fromStmt:stmt
+                              intoString:&ID]) {
+                    continue;
+                }
+                if (![self putDataWithID:2
+                                fromStmt:stmt
+                              intoString:&desc]) {
+                    continue;
+                }
+                if (![self putDataWithID:3
+                                fromStmt:stmt
+                              intoString:&value]) {
+                    continue;
+                }
+                if (![self putDataWithID:4
+                                fromStmt:stmt
+                              intoString:&date]) {
+                    continue;
+                }
+                if (![self putDataWithID:5
+                                fromStmt:stmt
+                              intoString:&currency]) {
+                    continue;
+                }
                 double rank = -1.0f*sqlite3_column_double(stmt, 7);
-                
                 id retObj;
-          
                 FTSItem * item;
                 item = [[FTSItem alloc] initItemWithType:type
                                                       ID:ID
@@ -578,11 +585,25 @@ static sqlite3 * searchdb = nil;
             }
             sqlite3_finalize(stmt);
             stmt = NULL;
-        }}
+        }
+    }
     return resArray.copy;
 }
 
-+(int ) editlistWithString1:(NSString *)s1
+-(BOOL) putDataWithID:(int)ID
+             fromStmt:(sqlite3_stmt *)stmt
+           intoString:(NSString **)str {
+    
+    const char * buf = (const char *) sqlite3_column_text(stmt, 2);
+    if (buf != nil) {
+        *str = [[NSString alloc] initWithUTF8String:buf];
+        return YES;
+    }
+    
+    return NO;
+}
+
+-(int ) editlistWithString1:(NSString *)s1
                     String2:(NSString *)s2 {
     NSInteger m = [s1 length];
     NSInteger n = [s2 length];
@@ -592,28 +613,29 @@ static sqlite3 * searchdb = nil;
     
     for (int i = 0; i <= n; i++) [D2 insertObject:[NSNumber numberWithInt:i] atIndex:i];
     
-    for (int i = 0; i <= m; i++) {\
+    for (int i = 1; i <= m; i++) {
         D1 = D2;
         D2 = [NSMutableArray arrayWithCapacity:n+1];
         for (int j = 0; j <= n; j ++) {
             if (j == 0) {
                 [D2 insertObject:[NSNumber numberWithInt:i] atIndex:j];
             } else {
-                int cost;
-                if (i > 0) {
-                    cost = ([s1 characterAtIndex:i-1] != [s2 characterAtIndex:j-1] ? 1 : 0);
-                } else {
-                    cost = 1;
-                }
-                if (([D2 objectAtIndex:j-1] < [D1 objectAtIndex:j]) && ([D2 objectAtIndex:j-1] < ([NSNumber numberWithInt:([[D1 objectAtIndex:j-1] intValue] + cost)] )) ) {
-                    [D2 insertObject:[NSNumber numberWithInt:([[D2 objectAtIndex:j-1] intValue] + 1)] atIndex:j];
-                } else if ([D1 objectAtIndex:j] < [NSNumber numberWithInt:([[D1 objectAtIndex:j-1] intValue] + cost)]) [D2 insertObject:[NSNumber numberWithInt:([[D1 objectAtIndex:j] intValue] + 1)] atIndex:j];
-                else [D2 insertObject:[NSNumber numberWithInt:([[D1 objectAtIndex:j-1] intValue] + cost)] atIndex:j];
+                int cost = ([s1 characterAtIndex:i-1] != [s2 characterAtIndex:j-1] ? 1 : 0);
+                int x1  = [[D2 objectAtIndex:j-1] intValue];
+                int x2 = [[D1 objectAtIndex:j] intValue];
+                int x3 = ([[D1 objectAtIndex:j-1] intValue] + cost);
+                int x4 = ([[D2 objectAtIndex:j-1] intValue] + 1);
+                int x5 = ([[D1 objectAtIndex:j] intValue] + 1);
+                if ((x1 < x2) && (x1 < x3)) {
+                    [D2 insertObject:[NSNumber numberWithInt:x4] atIndex:j];
+                } else if (x2 < x3)
+                    [D2 insertObject:[NSNumber numberWithInt:x5] atIndex:j];
+                else
+                    [D2 insertObject:[NSNumber numberWithInt:x3] atIndex:j];
             }
             
         }
     }
-    
     
     return [[D2 objectAtIndex:n] intValue];
 }
@@ -633,7 +655,6 @@ static sqlite3 * searchdb = nil;
             dispatch_async(dispatch_get_main_queue(), ^{
                 completion(retObj, nil);
             });
-            
         }
     });
 }
@@ -731,21 +752,21 @@ static sqlite3 * searchdb = nil;
     char * errMsg;
     NSData *object;
     NSString *querySt =  [NSString stringWithFormat:@"\
-                SELECT o.object \
-                FROM objects as o \
-                WHERE o.type = \"%@\" \
-                AND o.id = \"%@\";", type, ID];
+                          SELECT o.object \
+                          FROM objects as o \
+                          WHERE o.type = \"%@\" \
+                          AND o.id = \"%@\";", type, ID];
     
     const char * sqlQuery = [querySt UTF8String];
-        if(sqlite3_prepare_v2(searchdb, sqlQuery, -1, &_stmt, &errMsg) != SQLITE_OK) {
-            [self errorStatement:querySt withError:errMsg];
-        } else {
-            if (sqlite3_step(_stmt) == SQLITE_ROW) {
-                object = [NSData dataWithBytes:sqlite3_column_blob(_stmt, 0) length:sqlite3_column_bytes(_stmt, 0)];
-            }
+    if(sqlite3_prepare_v2(searchdb, sqlQuery, -1, &_stmt, &errMsg) != SQLITE_OK) {
+        [self errorStatement:querySt withError:errMsg];
+    } else {
+        if (sqlite3_step(_stmt) == SQLITE_ROW) {
+            object = [NSData dataWithBytes:sqlite3_column_blob(_stmt, 0) length:sqlite3_column_bytes(_stmt, 0)];
         }
-        sqlite3_finalize(_stmt);
-        _stmt = NULL;
+    }
+    sqlite3_finalize(_stmt);
+    _stmt = NULL;
     return object;
 }
 
