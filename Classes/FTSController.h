@@ -25,6 +25,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, strong) NSDictionary * topicDict;
 @property (nonatomic, strong) NSDictionary * topicDescDict;
 
+- (void)getObjectWithItem:(FTSItem *)item completion:(void (^)(id object, NSError *error))completion;
+- (void)getObjectsWithItems:(NSArray <FTSItem *> *)items completion:(void (^)(NSArray *objects, NSError *error))completion;
 
 
 +(FTSController *) SharedInstance;

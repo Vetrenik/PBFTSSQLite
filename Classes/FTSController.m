@@ -17,20 +17,18 @@
 int opendb_for_create(const char *filename, sqlite3 **ppDb)
 {
     sqlite3_config(SQLITE_CONFIG_MULTITHREAD);
-    int res =  sqlite3_open_v2(filename, ppDb, SQLITE_OPEN_READWRITE|SQLITE_OPEN_FULLMUTEX|SQLITE_OPEN_CREATE, NULL);
+    int res =  sqlite3_open_v2(filename, ppDb, SQLITE_OPEN_READWRITE|SQLITE_OPEN_CREATE, NULL);
     return res;
 }
 
 int opendb_for_write(const char *filename, sqlite3 **ppDb)
 {
-    sqlite3_config(SQLITE_CONFIG_MULTITHREAD);
     int res =  sqlite3_open_v2(filename, ppDb, SQLITE_OPEN_READWRITE|SQLITE_OPEN_FULLMUTEX, NULL);
     return res;
 }
 
 int opendb_for_read(const char *filename, sqlite3 **ppDb)
 {
-    sqlite3_config(SQLITE_CONFIG_MULTITHREAD);
     int res =  sqlite3_open_v2(filename, ppDb, SQLITE_OPEN_READONLY|SQLITE_OPEN_FULLMUTEX, NULL);
     return res;
 }
@@ -58,7 +56,11 @@ int opendb_for_read(const char *filename, sqlite3 **ppDb)
 @implementation FTSController
 
 static sqlite3 * searchdb = nil;
-static sqlite3_stmt * stmt = nil;
+
+- (void)dealloc
+{
+    sqlite3_close(searchdb);
+}
 
 +(FTSController *) SharedInstance {
     static FTSController * fts = nil;
@@ -126,7 +128,6 @@ static sqlite3_stmt * stmt = nil;
     
     if ([fileMgr fileExistsAtPath:self.databasePath] == NO) {
         
-        //if (sqlite3_open([self.databasePath UTF8String], &searchdb) == SQLITE_OK) {
         if (opendb_for_create([self.databasePath UTF8String], &searchdb) == SQLITE_OK) {
             char * errMsg;
             const char * sqlSt;
@@ -137,21 +138,23 @@ static sqlite3_stmt * stmt = nil;
                 sqlSt = "CREATE VIRTUAL TABLE  search USING fts3(type, id, desc, value, date, currency, tokenize = porter);";
             }
             
-            if (sqlite3_exec(searchdb, sqlSt, NULL, NULL, &errMsg) == SQLITE_OK) {
+            if (sqlite3_exec(searchdb, sqlSt, NULL, NULL, &errMsg) != SQLITE_OK) {
+                [self errorStatement:@"Create FTS" withError:errMsg];
+            } else {
                 sqlSt = "CREATE TABLE objects (\
                 type TEXT,\
                 id TEXT, \
                 object BLOB);";
-                if (sqlite3_exec(searchdb, sqlSt, NULL, NULL, &errMsg) == SQLITE_OK) {
-                    state = YES;
-                    return state;
+                if (sqlite3_exec(searchdb, sqlSt, NULL, NULL, &errMsg) != SQLITE_OK) {
+                    [self errorStatement:@"Create Table \"Objects\"" withError:errMsg];
+                } else {
+                    sqlSt = "CREATE INDEX objects ON tags (id, type);";
+                    if (sqlite3_exec(searchdb, sqlSt, NULL, NULL, &errMsg) != SQLITE_OK) {
+                    } else {
+                        state = YES;
+                    }
                 }
-            } else {
-                return state;
             }
-            
-        } else {
-            NSLog(@"Error on open/create db");
         }
     }
     return state;
@@ -187,147 +190,161 @@ static sqlite3_stmt * stmt = nil;
 
 
 -(BOOL) indexOneRecordWithItem:(FTSItem *)item {
+    
     BOOL state = NO;
     
-    NSRegularExpression * spec = [NSRegularExpression regularExpressionWithPattern:@"\\p{P}"
-                                                                           options:NSRegularExpressionCaseInsensitive
-                                                                             error:nil];
-    NSRegularExpression * spacer = [NSRegularExpression regularExpressionWithPattern:@"\\s+"
-                                                                             options:NSRegularExpressionCaseInsensitive
-                                                                               error:nil];
-    item.desc = [spec stringByReplacingMatchesInString:item.desc
-                                               options:0
-                                                 range:NSMakeRange(0, [item.desc length])
-                                          withTemplate:@" "];
-    
-    item.desc = [spacer stringByReplacingMatchesInString:item.desc
-                                                 options:0
-                                                   range:NSMakeRange(0, [item.desc length])
-                                            withTemplate:@" "];
-    
-    
-    //stemming of the item's description
-    item.desc = [self.stemmer stemSentenceWithString:item.desc];
-    
-    //reformating the item's date from dd/MM/yyyy mm:HH to yyyyMMddHHmm format
-    NSString * date = [self dateReformatWithTrueDate:item.date];
-    
-    //making the custom set of topics for item in order to it's base topic
-    item.topicList = [self setListOfTopicsWithArrayTopicList:item.topicList];
-    
-    //making the custom description based on item's set of topics
-    for (NSString * topic in item.topicList) {
-        NSString * buf = @"";
-        NSArray * descs = [self.topicDescDict objectForKey:topic];
-        for (NSString * desc in descs) {
-            buf = [buf stringByAppendingString:[desc stringByAppendingString:@" "]];
+    @synchronized (self) {
+        
+        NSRegularExpression * spec = [NSRegularExpression regularExpressionWithPattern:@"\\p{P}"
+                                                                               options:NSRegularExpressionCaseInsensitive
+                                                                                 error:nil];
+        NSRegularExpression * spacer = [NSRegularExpression regularExpressionWithPattern:@"\\s+"
+                                                                                 options:NSRegularExpressionCaseInsensitive
+                                                                                   error:nil];
+        item.desc = [spec stringByReplacingMatchesInString:item.desc
+                                                   options:0
+                                                     range:NSMakeRange(0, [item.desc length])
+                                              withTemplate:@" "];
+        
+        item.desc = [spacer stringByReplacingMatchesInString:item.desc
+                                                     options:0
+                                                       range:NSMakeRange(0, [item.desc length])
+                                                withTemplate:@" "];
+        
+        
+        //stemming of the item's description
+        item.desc = [self.stemmer stemSentenceWithString:item.desc];
+        
+        //reformating the item's date from dd/MM/yyyy mm:HH to yyyyMMddHHmm format
+        NSString * date = [self dateReformatWithTrueDate:item.date];
+        
+        //making the custom set of topics for item in order to it's base topic
+        item.topicList = [self setListOfTopicsWithArrayTopicList:item.topicList];
+        
+        //making the custom description based on item's set of topics
+        for (NSString * topic in item.topicList) {
+            NSString * buf = @"";
+            NSArray * descs = [self.topicDescDict objectForKey:topic];
+            for (NSString * desc in descs) {
+                buf = [buf stringByAppendingString:[desc stringByAppendingString:@" "]];
+            }
+            item.desc = [item.desc stringByAppendingString:[@" " stringByAppendingString:buf]];
         }
-        item.desc = [item.desc stringByAppendingString:[@" " stringByAppendingString:buf]];
-    }
-    
-    item.desc = [item.desc lowercaseString];
-    
-    NSData * objectData;
-    
-    if ([item.object conformsToProtocol:@protocol(NSCoding)]) {
-        if (@available(iOS 11.0, *)) {
-            objectData = [NSKeyedArchiver archivedDataWithRootObject:item.object
-                                               requiringSecureCoding:YES
-                                                               error:nil];
+        
+        item.desc = [item.desc lowercaseString];
+        
+        /*
+         NSString * object= @"";
+         
+         if ([item.object conformsToProtocol:@protocol(NSCoding)]) {
+         if (@available(iOS 11.0, *)) {
+         NSData * objectData = [NSKeyedArchiver archivedDataWithRootObject:item.object
+         requiringSecureCoding:YES
+         error:nil];
+         object = [objectData base64EncodedStringWithOptions:0];
+         } else {
+         NSData * objectData = [NSKeyedArchiver archivedDataWithRootObject:item.object];
+         object = [objectData base64EncodedStringWithOptions:0];
+         }
+         } else {
+         NSLog(@"Error on indexing object of class %@ with type: %@ with id: %@, \n Object doesn't conforms to protocol: NSCoding", NSStringFromClass([item.object class]),item.type, item.ID);
+         @throw NSInternalInconsistencyException;
+         }
+         */
+        
+        /*
+         NSArray * descWords = [[item.desc stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]] componentsSeparatedByString:@" "];
+         
+         NSMutableArray * bufer = [NSMutableArray new];
+         [bufer addObject:[descWords objectAtIndex:0]];
+         
+         
+         for (int i = 1; i < [descWords count]; i++ ) {
+         int fl = 0;
+         for (int j = 0; j < [bufer count]; j++) {
+         
+         NSString * w1 = [descWords objectAtIndex:i];
+         NSString * w2 = [bufer objectAtIndex:j];
+         float a = [w1 length]*0.33f;
+         
+         if ([FTSController editlistWithString1:w1 String2:w2] > a) {
+         fl++;
+         }
+         
+         if (fl == [bufer count]) {
+         [bufer addObject:[descWords objectAtIndex:i]];
+         }
+         }
+         }
+         
+         item.desc = @"";
+         for (NSString * str in bufer) {
+         item.desc = [item.desc stringByAppendingString:str];
+         item.desc = [item.desc stringByAppendingString:@" "];
+         }
+         
+         item.desc = [item.desc stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+         */
+        
+        
+        NSString * value =  [NSString stringWithFormat:@"%015.2f", item.value];
+        const char * errMsg;
+        
+        //sqlite3_config(SQLITE_CONFIG_SERIALIZED);
+        
+        if (opendb_for_write([self.databasePath UTF8String], &searchdb) != SQLITE_OK) {
+            [self errorStatement:@"Database open" withError:sqlite3_errmsg(searchdb)];
         } else {
-            objectData = [NSKeyedArchiver archivedDataWithRootObject:item.object];
-            
-        }
-    } else {
-        NSLog(@"Error on indexing object of class %@ with type: %@ with id: %@, \n Object doesn't conforms to protocol: NSCoding", NSStringFromClass([item.object class]),item.type, item.ID);
-        @throw NSInternalInconsistencyException;
-    }
-    
-    
-    NSArray * descWords = [[item.desc stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]] componentsSeparatedByString:@" "];
-    
-    NSMutableArray * bufer = [NSMutableArray new];
-    [bufer addObject:[descWords objectAtIndex:0]];
-    
-    
-    for (int i = 1; i < [descWords count]; i++ ) {
-        int fl = 0;
-        for (int j = 0; j < [bufer count]; j++) {
-            
-            NSString * w1 = [descWords objectAtIndex:i];
-            NSString * w2 = [bufer objectAtIndex:j];
-            float a = [w1 length]*0.33f;
-            
-            if ([FTSController editlistWithString1:w1 String2:w2] > a) {
-                fl++;
-            }
-            
-            if (fl == [bufer count]) {
-                [bufer addObject:[descWords objectAtIndex:i]];
-            }
-        }
-    }
-    
-    item.desc = @"";
-    for (NSString * str in bufer) {
-        item.desc = [item.desc stringByAppendingString:str];
-        item.desc = [item.desc stringByAppendingString:@" "];
-    }
-    
-    item.desc = [item.desc stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
-    
-    
-    NSString * value =  [NSString stringWithFormat:@"%015.2f", item.value];
-    // NSString * sqlSt = [NSString stringWithFormat:@"INSERT OR REPLACE INTO search (rowid, type, id, desc, value, date, currency) values ((select rowid from search where id = \'%@\' and type = \'%@\'),\"%@\", \"%@\", \"%@\", \"%@\", \"%@\", \"%@\")",item.ID, item.type, item.type, item.ID, item.desc, value, date, item.currency];
-    NSString * sqlSt = @"INSERT OR REPLACE INTO search (rowid, type, id, desc, value, date, currency)\
-    values ((select rowid from search where id = ? and type = ?), ?, ?, ?, ?, ?, ?)";
-    const char * sqlInsert = [sqlSt UTF8String];
-    const char * errMsg;
-    
-    sqlite3_config(SQLITE_CONFIG_SERIALIZED);
-    
-    if (opendb_for_write([self.databasePath UTF8String], &searchdb) == SQLITE_OK) {
-        if (sqlite3_prepare_v2(searchdb, sqlInsert, -1, &stmt, &errMsg) == SQLITE_OK) {
-            sqlite3_bind_text(stmt, 1, [item.ID UTF8String], -1, SQLITE_STATIC);
-            sqlite3_bind_text(stmt, 2, [item.type UTF8String], -1, SQLITE_STATIC);
-            sqlite3_bind_text(stmt, 3, [item.type UTF8String], -1, SQLITE_STATIC);
-            sqlite3_bind_text(stmt, 4, [item.ID UTF8String], -1, SQLITE_STATIC);
-            sqlite3_bind_text(stmt, 5, [item.desc UTF8String], -1, SQLITE_STATIC);
-            sqlite3_bind_text(stmt, 6, [value UTF8String], -1, SQLITE_STATIC);
-            sqlite3_bind_text(stmt, 7, [date UTF8String], -1, SQLITE_STATIC);
-            sqlite3_bind_text(stmt, 8, [item.currency UTF8String], -1, SQLITE_STATIC);
-            
-            if (sqlite3_step(stmt) ==SQLITE_DONE) {
+            sqlite3_stmt * stmt = NULL;
+            NSString * sqlSt = @"INSERT OR REPLACE INTO search (rowid, type, id, desc, value, date, currency) \
+            values ((select rowid from search where id = ? and type = ?),?, ?, ?, ?, ?, ?);";
+            int state = sqlite3_prepare_v2(searchdb, sqlSt.UTF8String, -1, &stmt, &errMsg);
+            if (state != SQLITE_OK) {
+                [self errorStatement:sqlSt withError:errMsg];
+            } else {
+                sqlite3_bind_text(stmt, 1, [item.ID UTF8String],       -1, SQLITE_STATIC);
+                sqlite3_bind_text(stmt, 2, [item.type UTF8String],     -1, SQLITE_STATIC);
+                sqlite3_bind_text(stmt, 3, [item.type UTF8String],     -1, SQLITE_STATIC);
+                sqlite3_bind_text(stmt, 4, [item.ID UTF8String],       -1, SQLITE_STATIC);
+                sqlite3_bind_text(stmt, 5, [item.desc UTF8String],     -1, SQLITE_STATIC);
+                sqlite3_bind_text(stmt, 6, [value UTF8String],         -1, SQLITE_STATIC);
+                sqlite3_bind_text(stmt, 7, [date UTF8String],          -1, SQLITE_STATIC);
+                sqlite3_bind_text(stmt, 8, [item.currency UTF8String], -1, SQLITE_STATIC);
                 
-                //   sqlSt = [NSString stringWithFormat:@"INSERT OR REPLACE INTO objects (rowid, type, id, object) \
-                values ((select rowid from search where id = \'%@\' and type = \'%@\'),\"%@\", \"%@\", \"%@\")", item.ID, item.type, item.ID, item.type, [item.object string]];
-                sqlSt = @"INSERT OR REPLACE INTO objects (rowid, type, id, object) \
-                values ((select rowid from search where id = ? and type = ?), ?, ?, ?)";
-                sqlInsert = [sqlSt UTF8String];
-                
-                if (sqlite3_prepare_v2(searchdb, sqlInsert, -1, &stmt, &errMsg) == SQLITE_OK) {
-                    sqlite3_bind_text(stmt, 1, [item.ID UTF8String], -1, SQLITE_STATIC);
-                    sqlite3_bind_text(stmt, 2, [item.type UTF8String], -1, SQLITE_STATIC);
-                    sqlite3_bind_text(stmt, 3, [item.type UTF8String], -1, SQLITE_STATIC);
-                    sqlite3_bind_text(stmt, 4, [item.ID UTF8String], -1, SQLITE_STATIC);
-                    sqlite3_bind_blob(stmt, 5, [objectData bytes], (int)[objectData length], SQLITE_STATIC);
+                if (sqlite3_step(stmt) == SQLITE_DONE) {
                     
-                    if (sqlite3_step(stmt) ==SQLITE_DONE) {
-                        state = YES;
-                        sqlite3_reset(stmt);
-                        sqlite3_close(searchdb);
-                        sqlite3_db_release_memory(searchdb);
-                        return state;
+                    sqlite3_finalize(stmt);
+                    stmt = NULL;
+                    
+                    NSData *objectData = [self serializedDataWithObject:item.object];
+                    
+                    if (objectData.length) {
+                        sqlSt = @"INSERT OR REPLACE INTO objects (rowid, type, id, object) \
+                        values ((select rowid from search where id = ? and type = ?),?,?,?)";
+                        
+                        int state = sqlite3_prepare_v2(searchdb, sqlSt.UTF8String, -1, &stmt, &errMsg);
+                        if (state != SQLITE_OK) {
+                            [self errorStatement:sqlSt withError:errMsg];
+                        } else {
+                            sqlite3_bind_text(stmt, 1, [item.ID UTF8String], -1, SQLITE_STATIC);
+                            sqlite3_bind_text(stmt, 2, [item.type UTF8String], -1, SQLITE_STATIC);
+                            sqlite3_bind_text(stmt, 3, [item.type UTF8String], -1, SQLITE_STATIC);
+                            sqlite3_bind_text(stmt, 4, [item.ID UTF8String], -1, SQLITE_STATIC);
+                            sqlite3_bind_blob(stmt, 5, objectData.bytes, objectData.length, SQLITE_STATIC);
+                            // exec
+                            if (sqlite3_step(stmt) == SQLITE_DONE) {
+                                state = YES;
+                                
+                            }
+                        }
                     }
                 }
-                
             }
-            sqlite3_reset(stmt);
+            //sqlite3_reset(stmt);
+            sqlite3_finalize(stmt);
+            stmt = NULL;
         }
-    } else {
-        NSLog(@"Error on inserting into search table");
     }
-    
     return state;
 }
 
@@ -435,6 +452,7 @@ static sqlite3_stmt * stmt = nil;
 
 -(NSArray<FTSItem *> *) searchWithQueryItem:(FTSQueryItem *)query {
     
+    sqlite3_stmt * stmt = NULL;
     NSMutableArray * resArray = @[].mutableCopy;
     
     BOOL hasFirstDate = ![query.first_date isEqualToString:@""];
@@ -451,79 +469,63 @@ static sqlite3_stmt * stmt = nil;
         
         if (hasValue&&hasDate) {  //if query has both value and date
             querySt = [NSString stringWithFormat:@"\
-                       SELECT s.type, s.id, s.desc, s.value, s.date, s.currency, o.object, bm25(search) \
-                       FROM search as s, objects as o \
+                       SELECT s.type, s.id, s.desc, s.value, s.date, s.currency, bm25(search) \
+                       FROM search as s \
                        WHERE s.desc MATCH \'%@\'\
                        AND s.value BETWEEN \'%@\' AND \'%@\'\
                        AND s.date BETWEEN \'%@\' AND \'%@\'\
                        and s.currency = \'%@\'\
-                       AND o.type = s.type \
-                       AND o.id = s.id \
                        ORDER BY bm25(search);", query.desc, query.first_value, query.second_value, query.first_date, query.second_date, query.currency];
         } else if (hasValue&&!hasDate) { //if query has value but not date
             querySt = [NSString stringWithFormat:@"\
-                       SELECT s.type, s.id, s.desc, s.value, s.date, s.currency, o.object, bm25(search) \
-                       FROM search as s, objects as o \
+                       SELECT s.type, s.id, s.desc, s.value, s.date, s.currency, bm25(search) \
+                       FROM search as s \
                        WHERE s.desc MATCH \'%@\'\
                        AND s.value BETWEEN \'%@\' AND \'%@\'\
                        and s.currency = \'%@\'\
-                       AND o.type = s.type \
-                       AND o.id = s.id \
                        ORDER BY bm25(search);", query.desc, query.first_value, query.second_value,query.currency];
         } else if (!hasValue&&hasDate) { //if query has date but not value
             querySt =  [NSString stringWithFormat:@"\
-                        SELECT s.type, s.id, s.desc, s.value, s.date, s.currency, o.object, bm25(search) \
-                        FROM search as s, objects as o \
+                        SELECT s.type, s.id, s.desc, s.value, s.date, s.currency, bm25(search) \
+                        FROM search as s, \
                         WHERE s.desc MATCH \'%@\'\
                         AND s.date BETWEEN \'%@\' AND \'%@\'\
-                        AND o.type = s.type \
-                        AND o.id = s.id \
                         ORDER BY bm25(search);", query.desc,query.first_date, query.second_date];
         } else { // query if has neither value nor date
             querySt =  [NSString stringWithFormat:@"\
-                        SELECT s.type, s.id, s.desc, s.value, s.date, s.currency, o.object, bm25(search) \
-                        FROM search as s, objects as o \
+                        SELECT s.type, s.id, s.desc, s.value, s.date, s.currency, bm25(search) \
+                        FROM search as s\
                         WHERE s.desc MATCH \'%@\'\
-                        AND o.type = s.type \
-                        AND o.id = s.id \
                         ORDER BY bm25(search);", query.desc];
         }
         
     } else {
         if (hasValue&&hasDate) {  //if query has both value and date
             querySt = [NSString stringWithFormat:@"\
-                       SELECT s.type, s.id, s.desc, s.value, s.date, s.currency, o.object, matchinfo(search) \
-                       FROM search as s, objects as o \
+                       SELECT s.type, s.id, s.desc, s.value, s.date, s.currency, matchinfo(search) \
+                       FROM search as s, \
                        WHERE s.desc MATCH \'%@\'\
                        AND s.value BETWEEN \'%@\' AND \'%@\'\
                        AND s.date BETWEEN \'%@\' AND \'%@\'\
-                       AND s.currency = \'%@\' \
-                       AND o.type = s.type \
-                       AND o.id = s.id;", query.desc, query.first_value, query.second_value, query.first_date, query.second_date, query.currency];
+                       AND s.currency = \'%@\';", query.desc, query.first_value, query.second_value, query.first_date, query.second_date, query.currency];
         } else if (hasValue&&!hasDate) { //if query has value but not date
             querySt = [NSString stringWithFormat:@"\
-                       SELECT s.type, s.id, s.desc, s.value, s.date, s.currency, o.object, matchinfo(search)  \
-                       FROM search as s, objects as o \
+                       SELECT s.type, s.id, s.desc, s.value, s.date, s.currency, matchinfo(search)  \
+                       FROM search as s \
                        WHERE s.desc MATCH \'%@\'\
                        AND s.value BETWEEN \'%@\' AND \'%@\'\
-                       AND s.currency = \'%@\'\
-                       AND o.type = s.type \
-                       AND o.id = s.id;", query.desc, query.first_value, query.second_value,query.currency];
+                       AND s.currency = \'%@\';", query.desc, query.first_value, query.second_value,query.currency];
         } else if (!hasValue&&hasDate) { //if query has date but not value
             querySt =  [NSString stringWithFormat:@"\
-                        SELECT s.type, s.id, s.desc, s.value, s.date, s.currency, o.object, matchinfo(search)  \
-                        FROM search as s, objects as o \
+                        SELECT s.type, s.id, s.desc, s.value, s.date, s.currency, matchinfo(search)  \
+                        FROM search as s, \
                         WHERE s.desc MATCH \'%@\'\
-                        AND s.date BETWEEN \'%@\' AND \'%@\'\
-                        AND o.type = s.type \
-                        AND o.id = s.id;", query.desc,query.first_date, query.second_date];
+                        AND s.date BETWEEN \'%@\' AND \'%@\';", query.desc,query.first_date, query.second_date];
         } else { // query if has neither value nor date
             querySt =  [NSString stringWithFormat:@"\
-                        SELECT s.type, s.id, s.desc, s.value, s.date, s.currency, o.object, matchinfo(search)  \
-                        FROM search as s, objects as o \
-                        WHERE s.desc MATCH \'%@\'\
-                        AND o.type = s.type \
-                        AND o.id = s.id;", query.desc];
+                        SELECT s.type, s.id, s.desc, s.value, s.date, s.currency, matchinfo(search)  \
+                        FROM search as s, \
+                        WHERE s.desc MATCH \'%@\';", query.desc];
         }
     }
     
@@ -558,21 +560,10 @@ static sqlite3_stmt * stmt = nil;
                 currency = [[NSString alloc] initWithUTF8String:
                             (const char *) sqlite3_column_text(stmt, 5)];
                 
-                NSInteger size = sqlite3_column_bytes(stmt, 6);
-                
-                object = [[NSData alloc] initWithBytes:sqlite3_column_blob(stmt, 6) length:size];
-                
                 double rank = -1.0f*sqlite3_column_double(stmt, 7);
                 
                 id retObj;
-                
-                if (@available(iOS 11.0, *)) {
-                    retObj = [NSKeyedUnarchiver unarchivedObjectOfClass:[NSObject class]
-                                                               fromData:object
-                                                                  error:nil];
-                } else {
-                    retObj = [NSKeyedUnarchiver unarchiveObjectWithData:object];
-                }
+          
                 FTSItem * item;
                 item = [[FTSItem alloc] initItemWithType:type
                                                       ID:ID
@@ -585,9 +576,9 @@ static sqlite3_stmt * stmt = nil;
                 
                 [resArray addObject:item];
             }
-            sqlite3_reset(stmt);
+            sqlite3_finalize(stmt);
+            stmt = NULL;
         }}
-    sqlite3_close(searchdb);
     return resArray.copy;
 }
 
@@ -627,6 +618,140 @@ static sqlite3_stmt * stmt = nil;
     return [[D2 objectAtIndex:n] intValue];
 }
 
+- (void)getObjectWithItem:(FTSItem *)item completion:(void (^)(id object, NSError *error))completion
+{
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        id retObj;
+        NSData *object = [self objectDataWithID:item.ID andType:item.type];
+        if (object.length) {
+            retObj = [self unarchiveObjectWithData:object];
+        }
+        
+        item.object = retObj;
+        
+        if (completion) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                completion(retObj, nil);
+            });
+            
+        }
+    });
+}
 
+- (void)getObjectsWithItems:(NSArray <FTSItem *> *)items completion:(void (^)(NSArray *objects, NSError *error))completion
+{
+    NSMutableArray *retObjects = @[].mutableCopy;
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        [items enumerateObjectsUsingBlock:^(FTSItem * _Nonnull item, NSUInteger idx, BOOL * _Nonnull stop) {
+            NSData *objData = [self objectDataWithID:item.ID andType:item.type];
+            id object;
+            if (objData.length) {
+                object = [self unarchiveObjectWithData:objData];
+                if (object) {
+                    item.object = object;
+                    [retObjects addObject:object];
+                }
+            }
+        }];
+        
+        if (completion) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                completion(retObjects.copy, nil);
+            });
+        }
+    });
+}
+
+#pragma mark - Helpers
+
+- (id)unarchiveObjectWithData:(NSData *)data
+{
+    id object;
+    if (@available(iOS 11.0, *)) {
+        object = [NSKeyedUnarchiver unarchivedObjectOfClass:[NSObject class]
+                                                   fromData:data
+                                                      error:nil];
+    } else {
+        object = [NSKeyedUnarchiver unarchiveObjectWithData:data];
+    }
+    
+    return object;
+}
+
+/**
+ Сериализует объект в строку. Класс объекта должен поддерживать протокол NSCoding
+ 
+ @param object экземпляр класс
+ @return сериализованный объект
+ */
+- (NSString *)serializedStringWithObject:(id)object
+{
+    NSData *objectData;
+    if ([object conformsToProtocol:@protocol(NSCoding)]) {
+        if (@available(iOS 11.0, *)) {
+            objectData = [NSKeyedArchiver archivedDataWithRootObject:object
+                                               requiringSecureCoding:YES
+                                                               error:nil];
+            
+        } else {
+            objectData = [NSKeyedArchiver archivedDataWithRootObject:object];
+        }
+    } else {
+        NSLog(@"Error on indexing object of class %@, \n Object doesn't conforms to protocol: NSCoding", NSStringFromClass([object class]));
+        @throw NSInternalInconsistencyException;
+    }
+    
+    NSString *serialized = [objectData base64EncodedStringWithOptions:0];
+    return serialized;
+}
+
+- (NSData *)serializedDataWithObject:(id)object
+{
+    NSData *objectData;
+    if ([object conformsToProtocol:@protocol(NSCoding)]) {
+        if (@available(iOS 11.0, *)) {
+            objectData = [NSKeyedArchiver archivedDataWithRootObject:object
+                                               requiringSecureCoding:YES
+                                                               error:nil];
+            
+        } else {
+            objectData = [NSKeyedArchiver archivedDataWithRootObject:object];
+        }
+    } else {
+        NSLog(@"Error on indexing object of class %@, \n Object doesn't conforms to protocol: NSCoding", NSStringFromClass([object class]));
+        @throw NSInternalInconsistencyException;
+    }
+    
+    return objectData;
+}
+
+- (NSData *)objectDataWithID:(NSString *)ID andType:(NSString *)type
+{
+    sqlite3_stmt * _stmt;
+    char * errMsg;
+    NSData *object;
+    NSString *querySt =  [NSString stringWithFormat:@"\
+                SELECT o.object \
+                FROM objects as o \
+                WHERE o.type = \"%@\" \
+                AND o.id = \"%@\";", type, ID];
+    
+    const char * sqlQuery = [querySt UTF8String];
+        if(sqlite3_prepare_v2(searchdb, sqlQuery, -1, &_stmt, &errMsg) != SQLITE_OK) {
+            [self errorStatement:querySt withError:errMsg];
+        } else {
+            if (sqlite3_step(_stmt) == SQLITE_ROW) {
+                object = [NSData dataWithBytes:sqlite3_column_blob(_stmt, 0) length:sqlite3_column_bytes(_stmt, 0)];
+            }
+        }
+        sqlite3_finalize(_stmt);
+        _stmt = NULL;
+    return object;
+}
+
+- (void)errorStatement:(NSString *)statement withError:(const char *)error
+{
+    NSLog(@"DB statement:<%@> error:<%@>", statement, [[NSString alloc] initWithUTF8String:error? : sqlite3_errmsg(searchdb)]);
+}
 
 @end
