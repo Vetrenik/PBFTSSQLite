@@ -32,7 +32,7 @@ NS_ASSUME_NONNULL_BEGIN
                            value:(float)value
                             date:(NSDate * _Nullable)date
                         currency:(NSString *)currency
-                          object:(id)object;
+                          object:(id _Nullable)object;
 
 @end
 

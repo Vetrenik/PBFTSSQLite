@@ -15,9 +15,9 @@
                           topics:(NSArray<NSString *> *)topicList
                             desc:(NSString *)desc
                            value:(float)value
-                            date:(NSDate *)date
+                            date:(NSDate * _Nullable)date
                         currency:(NSString *)currency
-                          object:(id)object{
+                          object:(id _Nullable)object{
     if (self = [super init]) {
         self.type = type;
         self.ID = ID;
