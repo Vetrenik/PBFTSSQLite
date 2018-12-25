@@ -36,6 +36,26 @@
     return self;
 }
 
+#pragma mark - <Equals>
+- (BOOL)isEqual:(id)object
+{
+    if (self == object) {
+        return YES;
+    }
+    
+    if ([object isKindOfClass:self.class]) {
+        FTSItem *otherObject = (FTSItem *)object;
+        if ([otherObject.ID isEqualToString:self.ID] && [otherObject.type isEqualToString:self.type]) {
+            return YES;
+        }
+    }
+    return NO;
+}
+
+- (NSUInteger)hash
+{
+    return [NSString stringWithFormat:@"%@%@", self.ID, self.type].hash;
+}
 
 
 @end
