@@ -42,6 +42,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 -(NSArray<FTSItem *> *) searchWithQueryString:(NSString *)sString;
 
+- (BOOL) deleteEntriesOfType:(NSString* )type;
+
 @end
 
 NS_ASSUME_NONNULL_END
