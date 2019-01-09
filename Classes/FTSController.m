@@ -35,7 +35,7 @@ int opendb_for_read(const char *filename, sqlite3 **ppDb)
 
 @interface FTSController()
 {
-    NSIndexSet * _hashes;
+    NSSet * _hashes;
     NSUInteger _hash;
 }
 -(BOOL) createDB;
@@ -54,36 +54,68 @@ int opendb_for_read(const char *filename, sqlite3 **ppDb)
 
 -(NSDate *)dateBackReformatWithDate:(NSString *)date;
 
-@property (strong, readonly) NSIndexSet * hashes;
+@property (strong, readonly) NSSet * hashes;
 
 @end
 
 @implementation FTSController
 
--(NSIndexSet *) hashes {
-    
-    if (_hashes == nil || _hashes.hash != _hash) {
-        NSMutableIndexSet * ret;
+-(NSSet *) hashes {
+    @synchronized (_hashes) {
         
-        if (opendb_for_read([self.databasePath UTF8String], &searchdb) != SQLITE_OK) {
-            [self errorStatement:@"" withError:""];
-        } else {
-            NSString * querySt = @"SELECT hash FROM objects;";
-            const char * sqlQuery = [querySt UTF8String];
-            sqlite3_stmt * stmt = nil;
-            if (sqlite3_prepare_v2(searchdb, sqlQuery, -1, &stmt, NULL) != SQLITE_OK) {
+        if (_hashes == nil || [self hashWithSet:_hashes] != _hash || _hash == 0 ) {
+            
+            NSMutableSet * ret = [NSMutableSet new];
+            
+            if (opendb_for_read([self.databasePath UTF8String], &searchdb) != SQLITE_OK) {
                 [self errorStatement:@"" withError:""];
             } else {
-                while(sqlite3_step(stmt) == SQLITE_ROW) {
-                    [ret addIndex:sqlite3_column_int(stmt, 1)];
+                NSString * querySt = @"SELECT hash FROM objects;";
+                const char * sqlQuery = [querySt UTF8String];
+                sqlite3_stmt * stmt = nil;
+                const char *errMsg;
+                int state = sqlite3_prepare_v2(searchdb, sqlQuery, -1, &stmt, &errMsg);
+                if (state != SQLITE_OK) {
+                    [self errorStatement:querySt withError:errMsg];
+                } else {
+                    while(sqlite3_step(stmt) == SQLITE_ROW) {
+                        NSString *hash;
+                        [self putDataWithID:0 fromStmt:stmt intoString:&hash];
+                        if (hash) {
+                            [ret addObject:hash];
+                        }
+                    }
                 }
+                sqlite3_finalize(stmt);
             }
-            sqlite3_finalize(stmt);
+            _hash = [self hashWithSet:ret];
+            _hashes = ret.copy;
+            
+            // >> DEBUG
+            NSMutableString *str = @"".mutableCopy;
+            [_hashes enumerateObjectsUsingBlock:^(id  _Nonnull obj, BOOL * _Nonnull stop) {
+                [str appendFormat:@"%@, ", obj];
+            }];
+            NSLog(@">> FTS build hashes [%@]", str);
+            // << DEBUG
         }
-        _hash = ret.hash;
-        _hashes = ret.copy;
     }
     return _hashes;
+}
+
+- (NSUInteger)hashWithSet:(NSSet *)set
+{
+    NSMutableString *str = @"".mutableCopy;
+    [set enumerateObjectsUsingBlock:^(id  _Nonnull obj, BOOL * _Nonnull stop) {
+        [str appendFormat:@"%@", obj];
+    }];
+    return str.hash;
+}
+
+- (NSString *)hashItem:(FTSItem *)item
+{
+    NSUInteger hash = [NSString stringWithFormat:@"%@%@", @(item.hash), @([self serializedDataWithObject:item.object].hash)].hash;
+    return [NSString stringWithFormat:@"%@", @(hash)];
 }
 
 static sqlite3 * searchdb = nil;
@@ -103,6 +135,18 @@ static sqlite3 * searchdb = nil;
         });
     }
     return fts;
+}
+
++ (void)reset
+{
+    sqlite3_close(searchdb);
+    searchdb = nil;
+    
+    NSError *error = nil;
+    [[NSFileManager defaultManager] removeItemAtPath:[FTSController SharedInstance].databasePath error:&error];
+    if (error) {
+        NSLog(@"FTSController reset error:<%@>", error.userInfo[NSLocalizedDescriptionKey]);
+    }
 }
 
 - (void)initializeWithDBPathString:(NSString *)dbpath {
@@ -162,21 +206,24 @@ static sqlite3 * searchdb = nil;
         [fileMgr createFileAtPath:self.databasePath
                          contents:nil
                        attributes:nil];
-        char * errMsg;
-        const char * sqlSt;
-        sqlSt = "CREATE TABLE objects (\
-        type TEXT,\
-        id TEXT, \
-        object BLOB \
-        hash INTEGER);";
         
-        if (sqlite3_exec(searchdb, sqlSt, NULL, NULL, &errMsg) != SQLITE_OK) {
-            [self errorStatement:@"Create Table \"Objects\"" withError:errMsg];
-        } else {
-            sqlSt = "CREATE INDEX objects ON tags (id, type);";
+        if (opendb_for_create([self.databasePath UTF8String], &searchdb) == SQLITE_OK) {
+            const char * errMsg;
+            const char * sqlSt;
+            sqlSt = "CREATE TABLE objects (\
+            type TEXT,\
+            id TEXT, \
+            object BLOB,\
+            hash TEXT);";
+            
             if (sqlite3_exec(searchdb, sqlSt, NULL, NULL, &errMsg) != SQLITE_OK) {
+                [self errorStatement:@"Create Table \"Objects\"" withError:errMsg];
             } else {
-                state = YES;
+                sqlSt = "CREATE INDEX objects ON tags (id, hash, type);";
+                if (sqlite3_exec(searchdb, sqlSt, NULL, NULL, &errMsg) != SQLITE_OK) {
+                } else {
+                    state = YES;
+                }
             }
         }
     }
@@ -196,6 +243,8 @@ static sqlite3 * searchdb = nil;
                 [self errorStatement:@"Create FTS" withError:errMsg];
             }
         }
+        
+        [self hashes];
     }
     return state;
 }
@@ -254,21 +303,30 @@ static sqlite3 * searchdb = nil;
 
 -(BOOL) indexRecordsWithArrayOfItems:(NSArray *)iArray {
     BOOL state = NO;
-    NSMutableArray * inserts = [NSMutableArray new];
-    
-    for (FTSItem * item in iArray) {
-        NSUInteger hash = [NSString stringWithFormat:@"%@%@", @(item.hash), @([self serializedDataWithObject:item.object].hash)].hash;
-        if (![self.hashes containsIndex:hash]) {
-            [inserts addObject:item];
+    @synchronized (self) {
+        
+        NSMutableArray * inserts = [NSMutableArray new];
+        
+        for (FTSItem * item in iArray) {
+            NSString *hash = [self hashItem:item];
+            if (![self.hashes containsObject:hash]) {
+                [inserts addObject:item];
+                NSLog(@">> enn [%@] FTS item [%@] no hash [%@]", NSStringFromClass(item.class), item, hash);
+            } else {
+                NSLog(@">> enn [%@] FTS item [%@] in cache", NSStringFromClass(item.class), item);
+            }
         }
-    }
-    
-    if ([inserts count] > 0) {
-        if (opendb_for_write([self.databasePath UTF8String], &searchdb) != SQLITE_OK) {
-            [self errorStatement:@"" withError:""];
-        } else {
-            for (FTSItem * item in inserts) {
-                state = [self indexOneRecordWithItem:item];
+        
+        if ([inserts count] > 0) {
+            if (opendb_for_write([self.databasePath UTF8String], &searchdb) != SQLITE_OK) {
+                [self errorStatement:@"" withError:""];
+            } else {
+                for (FTSItem * item in inserts) {
+                    state = [self indexOneRecordWithItem:item];
+                }
+                
+                _hash = 0;
+                [self hashes];
             }
         }
     }
@@ -287,6 +345,8 @@ static sqlite3 * searchdb = nil;
         item.desc = [self processItemDesc:item.desc
                              andTopicList:item.topicList];
         
+        
+        
         NSString * value =  [NSString stringWithFormat:@"%015.2f", item.value];
         const char * errMsg;
         
@@ -301,8 +361,7 @@ static sqlite3 * searchdb = nil;
                 [self errorStatement:sqlSt withError:errMsg];
             } else {
                 NSArray * insArr = [NSArray arrayWithObjects:item.ID, item.type, item.type, item.ID, item.desc, value, date, item.currency, nil];
-                [FTSController bindData:insArr
-                                 toStmt:stmt];
+                [self bindData:insArr toStmt:stmt];
                 
                 if (sqlite3_step(stmt) == SQLITE_DONE) {
                     
@@ -319,14 +378,12 @@ static sqlite3 * searchdb = nil;
                         if (state != SQLITE_OK) {
                             [self errorStatement:sqlSt withError:errMsg];
                         } else {
-                            NSUInteger hash = [NSString stringWithFormat:@"%@%@", @(item.hash), @(objectData.hash)].hash;
-                            
-                            NSArray * insArr = [NSArray arrayWithObjects:item.ID, item.type, item.type, item.ID, objectData, @(hash),nil];
-                            [FTSController bindData:insArr
-                                             toStmt:stmt];
+                            //NSUInteger hash = [NSString stringWithFormat:@"%@%@", @(item.hash), @(objectData.hash)].hash;
+                            NSString *hash = [self hashItem:item];
+                            NSArray * insArr = [NSArray arrayWithObjects:item.ID, item.type, item.type, item.ID, objectData, hash, nil];
+                            [self bindData:insArr toStmt:stmt];
                             if (sqlite3_step(stmt) == SQLITE_DONE) {
                                 state = YES;
-                                
                             }
                         }
                     }
@@ -379,20 +436,25 @@ static sqlite3 * searchdb = nil;
     return [desc lowercaseString];
 }
 
-+(void) bindData:(NSArray *)data
+-(void) bindData:(NSArray *)data
           toStmt:(sqlite3_stmt *)stmt {
+    int status;
     for (int i = 0; i < [data count]; i++) {
         id curdata = [data objectAtIndex:i];
         if ([curdata isKindOfClass:[NSString class]]) {
-            sqlite3_bind_text(stmt, i+1, [(NSString *)curdata UTF8String], -1, SQLITE_STATIC);
+            status = sqlite3_bind_text(stmt, i+1, [(NSString *)curdata UTF8String], -1, SQLITE_STATIC);
         } else if ([curdata isKindOfClass:[NSData class]]) {
             NSData * objectData = curdata;
-            sqlite3_bind_blob(stmt, i+1, objectData.bytes, (int) objectData.length, SQLITE_STATIC);
+            status = sqlite3_bind_blob(stmt, i+1, objectData.bytes, (int) objectData.length, SQLITE_STATIC);
         } else if ([curdata isKindOfClass:[NSNumber class]]){
-            sqlite3_bind_int(stmt, i+1, [(NSNumber *)curdata intValue]);
-        }{
+            status = sqlite3_bind_int(stmt, i+1, [(NSNumber *)curdata unsignedIntegerValue]);
+        } else {
             NSLog(@"unsupported class in FtsController.BindDataToStmtWithData \
                   in object of type %@ with id%@ on interation %i", [data objectAtIndex:0], [data objectAtIndex:1], i);
+        }
+        
+        if (status != SQLITE_OK) {
+            [self errorStatement:[NSString stringWithFormat:@"bind value [%@] at index:%@", curdata, @(i)] withError:NULL];
         }
         
     }
@@ -849,6 +911,18 @@ static sqlite3 * searchdb = nil;
 - (void)errorStatement:(NSString *)statement withError:(const char *)error
 {
     NSLog(@"DB statement:<%@> error:<%@>", statement, [[NSString alloc] initWithUTF8String:error? : sqlite3_errmsg(searchdb)]);
+}
+
+- (NSTimeInterval)logTimeStartDesc:(NSString *)desc
+{
+    NSTimeInterval ti = [NSDate.date timeIntervalSince1970];
+    NSLog(@"time log [%@] start", desc);
+    return ti;
+}
+
+- (void)logTimeStopDesc:(NSString *)desc startTime:(NSTimeInterval)ti
+{
+    NSLog(@"time log [%@] stop duration:[%@]", desc, @([NSDate.date timeIntervalSince1970] - ti));
 }
 
 @end

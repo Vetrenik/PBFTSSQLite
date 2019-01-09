@@ -30,6 +30,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 
 +(FTSController *) SharedInstance;
++ (void)reset;
 
 /**
  Инициализация движка поисковика, необходимо вызвать при первом обращении к SharedInstance
