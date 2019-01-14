@@ -263,6 +263,7 @@ static sqlite3 * searchdb = nil;
         if (state != SQLITE_OK) {
             [self errorStatement:@"" withError:""];
         } else {
+            [self bindData:[NSArray arrayWithObjects:type, nil] toStmt:stmt];
             if (sqlite3_step(stmt) != SQLITE_DONE) {
                 [self errorStatement:@"" withError:""];
             } else {
@@ -418,20 +419,16 @@ static sqlite3 * searchdb = nil;
     //stemming of the item's description
     desc = [self.stemmer stemSentenceWithString:desc];
     
+    desc = [self LevensteinFilterWithDesc:[desc lowercaseString]];
+    
     //making the custom set of topics for item in order to it's base topic
     topicList = [self setListOfTopicsWithArrayTopicList:topicList];
     
     //making the custom description based on item's set of topics
     for (NSString * topic in topicList) {
-        NSString * buf = @"";
-        NSArray * descs = [self.topicDescDict objectForKey:topic];
-        for (NSString * desc in descs) {
-            buf = [buf stringByAppendingString:[desc stringByAppendingString:@" "]];
-        }
-        desc = [desc stringByAppendingString:[@" " stringByAppendingString:buf]];
+        NSString * buf = [[self.topicDescDict objectForKey:topic] componentsJoinedByString:@" "];
+        desc = [desc stringByAppendingString:[NSString stringWithFormat:@" %@", buf]];
     }
-    
-    desc = [self LevensteinFilterWithDesc:[desc lowercaseString]];
     
     return [desc lowercaseString];
 }
@@ -447,7 +444,7 @@ static sqlite3 * searchdb = nil;
             NSData * objectData = curdata;
             status = sqlite3_bind_blob(stmt, i+1, objectData.bytes, (int) objectData.length, SQLITE_STATIC);
         } else if ([curdata isKindOfClass:[NSNumber class]]){
-            status = sqlite3_bind_int(stmt, i+1, [(NSNumber *)curdata unsignedIntegerValue]);
+            status = sqlite3_bind_int(stmt, i+1, (int)[(NSNumber *)curdata unsignedIntegerValue]);
         } else {
             NSLog(@"unsupported class in FtsController.BindDataToStmtWithData \
                   in object of type %@ with id%@ on interation %i", [data objectAtIndex:0], [data objectAtIndex:1], i);
@@ -703,12 +700,14 @@ static sqlite3 * searchdb = nil;
                 FTSItem * item;
                 item = [[FTSItem alloc] initItemWithType:type
                                                       ID:ID
-                                                  topics:[NSArray arrayWithObjects:[NSString stringWithFormat:@"%.3f", rank], nil]
+                                                  topics:nil
                                                     desc:desc
                                                    value:[value floatValue]
                                                     date:[self dateBackReformatWithDate:date]
                                                 currency:currency
                                                   object:retObj];
+                
+                item.rank = rank;
                 
                 [resArray addObject:item];
             }
