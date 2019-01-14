@@ -24,10 +24,11 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, strong) NSDate * date ;
 @property (nonatomic, strong) NSString * currency;
 @property (nonatomic, strong) id object;
+@property (nonatomic, assign) double rank;
 
 -(instancetype) initItemWithType:(NSString *)type
                               ID:(NSString *)ID
-                          topics:(NSArray<NSString *> *)topicList
+                          topics:(NSArray<NSString *> * _Nullable)topicList
                             desc:(NSString *)desc
                            value:(float)value
                             date:(NSDate * _Nullable)date

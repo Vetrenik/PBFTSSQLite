@@ -12,7 +12,7 @@
 
 -(instancetype) initItemWithType:(NSString *)type
                               ID:(NSString *)ID
-                          topics:(NSArray<NSString *> *)topicList
+                          topics:(NSArray<NSString *> * _Nullable)topicList
                             desc:(NSString *)desc
                            value:(float)value
                             date:(NSDate * _Nullable)date
