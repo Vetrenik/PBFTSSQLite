@@ -1,11 +1,3 @@
-//
-//  FTSController.m
-//  TestSQLite
-//
-//  Created by Anton on 10/10/18.
-//  Copyright © 2018 Anton. All rights reserved.
-//
-
 #import "FTSController.h"
 #import "FTSItem.h"
 #import "sqlite3.h"
@@ -114,7 +106,8 @@ int opendb_for_read(const char *filename, sqlite3 **ppDb)
 
 - (NSString *)hashItem:(FTSItem *)item
 {
-    NSUInteger hash = [NSString stringWithFormat:@"%@%@", @(item.hash), @([self serializedDataWithObject:item.object].hash)].hash;
+    NSString *base64Obj = [[self serializedDataWithObject:item.object] base64EncodedStringWithOptions:0];
+    NSUInteger hash = [NSString stringWithFormat:@"%@%@", @(item.hash), @(base64Obj.hash)].hash;
     return [NSString stringWithFormat:@"%@", @(hash)];
 }
 
@@ -263,7 +256,7 @@ static sqlite3 * searchdb = nil;
         if (state != SQLITE_OK) {
             [self errorStatement:@"" withError:""];
         } else {
-            [self bindData:[NSArray arrayWithObjects:type, nil] toStmt:stmt];
+            [self bindData:@[type] toStmt:stmt];
             if (sqlite3_step(stmt) != SQLITE_DONE) {
                 [self errorStatement:@"" withError:""];
             } else {
@@ -419,16 +412,20 @@ static sqlite3 * searchdb = nil;
     //stemming of the item's description
     desc = [self.stemmer stemSentenceWithString:desc];
     
-    desc = [self LevensteinFilterWithDesc:[desc lowercaseString]];
-    
     //making the custom set of topics for item in order to it's base topic
     topicList = [self setListOfTopicsWithArrayTopicList:topicList];
     
     //making the custom description based on item's set of topics
     for (NSString * topic in topicList) {
-        NSString * buf = [[self.topicDescDict objectForKey:topic] componentsJoinedByString:@" "];
-        desc = [desc stringByAppendingString:[NSString stringWithFormat:@" %@", buf]];
+        NSString * buf = @"";
+        NSArray * descs = [self.topicDescDict objectForKey:topic];
+        for (NSString * desc in descs) {
+            buf = [buf stringByAppendingString:[desc stringByAppendingString:@" "]];
+        }
+        desc = [desc stringByAppendingString:[@" " stringByAppendingString:buf]];
     }
+    
+    desc = [self LevensteinFilterWithDesc:[desc lowercaseString]];
     
     return [desc lowercaseString];
 }
@@ -444,7 +441,7 @@ static sqlite3 * searchdb = nil;
             NSData * objectData = curdata;
             status = sqlite3_bind_blob(stmt, i+1, objectData.bytes, (int) objectData.length, SQLITE_STATIC);
         } else if ([curdata isKindOfClass:[NSNumber class]]){
-            status = sqlite3_bind_int(stmt, i+1, (int)[(NSNumber *)curdata unsignedIntegerValue]);
+            status = sqlite3_bind_int(stmt, i+1, [(NSNumber *)curdata unsignedIntegerValue]);
         } else {
             NSLog(@"unsupported class in FtsController.BindDataToStmtWithData \
                   in object of type %@ with id%@ on interation %i", [data objectAtIndex:0], [data objectAtIndex:1], i);
@@ -611,7 +608,7 @@ static sqlite3 * searchdb = nil;
         } else if (!hasValue&&hasDate) { //if query has date but not value
             querySt =  [NSString stringWithFormat:@"\
                         SELECT s.type, s.id, s.desc, s.value, s.date, s.currency, bm25(search) \
-                        FROM search as s, \
+                        FROM search as s \
                         WHERE s.desc MATCH \'%@\'\
                         AND s.date BETWEEN \'%@\' AND \'%@\'\
                         ORDER BY bm25(search);", query.desc,query.first_date, query.second_date];
@@ -627,7 +624,7 @@ static sqlite3 * searchdb = nil;
         if (hasValue&&hasDate) {  //if query has both value and date
             querySt = [NSString stringWithFormat:@"\
                        SELECT s.type, s.id, s.desc, s.value, s.date, s.currency, matchinfo(search) \
-                       FROM search as s, \
+                       FROM search as s \
                        WHERE s.desc MATCH \'%@\'\
                        AND s.value BETWEEN \'%@\' AND \'%@\'\
                        AND s.date BETWEEN \'%@\' AND \'%@\'\
@@ -642,13 +639,13 @@ static sqlite3 * searchdb = nil;
         } else if (!hasValue&&hasDate) { //if query has date but not value
             querySt =  [NSString stringWithFormat:@"\
                         SELECT s.type, s.id, s.desc, s.value, s.date, s.currency, matchinfo(search)  \
-                        FROM search as s, \
+                        FROM search as s \
                         WHERE s.desc MATCH \'%@\'\
                         AND s.date BETWEEN \'%@\' AND \'%@\';", query.desc,query.first_date, query.second_date];
         } else { // query if has neither value nor date
             querySt =  [NSString stringWithFormat:@"\
                         SELECT s.type, s.id, s.desc, s.value, s.date, s.currency, matchinfo(search)  \
-                        FROM search as s, \
+                        FROM search as s \
                         WHERE s.desc MATCH \'%@\';", query.desc];
         }
     }
@@ -656,7 +653,8 @@ static sqlite3 * searchdb = nil;
     
     const char * sqlQuery = [querySt UTF8String];
     if (opendb_for_read([self.databasePath UTF8String], &searchdb) == SQLITE_OK) {
-        if(sqlite3_prepare_v2(searchdb, sqlQuery, -1, &stmt, NULL) == SQLITE_OK) {
+        const char *err;
+        if(sqlite3_prepare_v2(searchdb, sqlQuery, -1, &stmt, &err) == SQLITE_OK) {
             NSString * type;
             NSString * ID;
             NSString * desc;
@@ -700,19 +698,19 @@ static sqlite3 * searchdb = nil;
                 FTSItem * item;
                 item = [[FTSItem alloc] initItemWithType:type
                                                       ID:ID
-                                                  topics:nil
+                                                  topics:[NSArray arrayWithObjects:[NSString stringWithFormat:@"%.3f", rank], nil]
                                                     desc:desc
                                                    value:[value floatValue]
                                                     date:[self dateBackReformatWithDate:date]
                                                 currency:currency
                                                   object:retObj];
                 
-                item.rank = rank;
-                
                 [resArray addObject:item];
             }
             sqlite3_finalize(stmt);
             stmt = NULL;
+        } else {
+            [self errorStatement:querySt withError:err];
         }
     }
     return resArray.copy;
