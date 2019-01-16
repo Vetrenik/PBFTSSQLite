@@ -489,7 +489,7 @@ static sqlite3 * searchdb = nil;
 -(NSArray<FTSItem *> *) searchWithQueryString:(NSString *)sString {
     if ([sString length]>0) {
         
-        sString = [sString stringByReplacingOccurrencesOfString:@"ё" withString:@"е"];
+        sString = [[sString stringByReplacingOccurrencesOfString:@"ё" withString:@"е"] lowercaseString];
         
         self.parameters = [[FTSSearchParameters alloc] initSearchParametersWithBufs:self.bufs
                                                                             inputed:sString];
@@ -576,141 +576,152 @@ static sqlite3 * searchdb = nil;
     sqlite3_stmt * stmt = NULL;
     NSMutableArray * resArray = @[].mutableCopy;
     
-    BOOL hasFirstDate = ![query.first_date isEqualToString:@""];
-    BOOL hasSecondDate =![query.second_date isEqualToString:@""];
-    BOOL hasDate = hasFirstDate||hasSecondDate;
-    BOOL hasFirstValue = ![query.first_value isEqualToString:[NSString stringWithFormat:@"%015.2f", 0.0f]];
-    BOOL hasSecondValue = ![query.second_value isEqualToString:@"inf"];
-    BOOL hasValue = hasFirstValue||hasSecondValue;
+    /*
+     BOOL hasFirstDate = ![query.first_date isEqualToString:@""];
+     BOOL hasSecondDate =![query.second_date isEqualToString:@""];
+     BOOL hasDate = hasFirstDate||hasSecondDate;
+     BOOL hasFirstValue = ![query.first_value isEqualToString:[NSString stringWithFormat:@"%015.2f", 0.0f]];
+     BOOL hasSecondValue = ![query.second_value isEqualToString:@"inf"];
+     BOOL hasValue = hasFirstValue||hasSecondValue;
+     
+     if (!hasSecondValue) query.second_value = @"999999999999999";
+     NSString * querySt;
+     if (@available(iOS 11, *)) {
+     
+     
+     if (hasValue&&hasDate) {  //if query has both value and date
+     querySt = [NSString stringWithFormat:@"\
+     SELECT s.type, s.id, s.desc, s.value, s.date, s.currency, bm25(search) \
+     FROM search as s \
+     WHERE s.desc MATCH \'%@\'\
+     AND s.value BETWEEN \'%@\' AND \'%@\'\
+     AND s.date BETWEEN \'%@\' AND \'%@\'\
+     and s.currency = \'%@\'\
+     ORDER BY bm25(search);", query.desc, query.first_value, query.second_value, query.first_date, query.second_date, query.currency];
+     } else if (hasValue&&!hasDate) { //if query has value but not date
+     querySt = [NSString stringWithFormat:@"\
+     SELECT s.type, s.id, s.desc, s.value, s.date, s.currency, bm25(search) \
+     FROM search as s \
+     WHERE s.desc MATCH \'%@\'\
+     AND s.value BETWEEN \'%@\' AND \'%@\'\
+     and s.currency = \'%@\'\
+     ORDER BY bm25(search);", query.desc, query.first_value, query.second_value,query.currency];
+     } else if (!hasValue&&hasDate) { //if query has date but not value
+     querySt =  [NSString stringWithFormat:@"\
+     SELECT s.type, s.id, s.desc, s.value, s.date, s.currency, bm25(search) \
+     FROM search as s \
+     WHERE s.desc MATCH \'%@\'\
+     AND s.date BETWEEN \'%@\' AND \'%@\'\
+     ORDER BY bm25(search);", query.desc,query.first_date, query.second_date];
+     } else { // query if has neither value nor date
+     querySt =  [NSString stringWithFormat:@"\
+     SELECT s.type, s.id, s.desc, s.value, s.date, s.currency, bm25(search) \
+     FROM search as s\
+     WHERE s.desc MATCH \'%@\'\
+     ORDER BY bm25(search);", query.desc];
+     }
+     
+     } else {
+     if (hasValue&&hasDate) {  //if query has both value and date
+     querySt = [NSString stringWithFormat:@"\
+     SELECT s.type, s.id, s.desc, s.value, s.date, s.currency, matchinfo(search) \
+     FROM search as s \
+     WHERE s.desc MATCH \'%@\'\
+     AND s.value BETWEEN \'%@\' AND \'%@\'\
+     AND s.date BETWEEN \'%@\' AND \'%@\'\
+     AND s.currency = \'%@\';", query.desc, query.first_value, query.second_value, query.first_date, query.second_date, query.currency];
+     } else if (hasValue&&!hasDate) { //if query has value but not date
+     querySt = [NSString stringWithFormat:@"\
+     SELECT s.type, s.id, s.desc, s.value, s.date, s.currency, matchinfo(search)  \
+     FROM search as s \
+     WHERE s.desc MATCH \'%@\'\
+     AND s.value BETWEEN \'%@\' AND \'%@\'\
+     AND s.currency = \'%@\';", query.desc, query.first_value, query.second_value,query.currency];
+     } else if (!hasValue&&hasDate) { //if query has date but not value
+     querySt =  [NSString stringWithFormat:@"\
+     SELECT s.type, s.id, s.desc, s.value, s.date, s.currency, matchinfo(search)  \
+     FROM search as s \
+     WHERE s.desc MATCH \'%@\'\
+     AND s.date BETWEEN \'%@\' AND \'%@\';", query.desc,query.first_date, query.second_date];
+     } else { // query if has neither value nor date
+     querySt =  [NSString stringWithFormat:@"\
+     SELECT s.type, s.id, s.desc, s.value, s.date, s.currency, matchinfo(search)  \
+     FROM search as s \
+     WHERE s.desc MATCH \'%@\';", query.desc];
+     }
+     }
+     */
     
-    if (!hasSecondValue) query.second_value = @"999999999999999";
-    NSString * querySt;
-    if (@available(iOS 11, *)) {
+    NSString *where = [self queryPartWhereWithQuery:query];
+    if (where.length) {
+        NSLog(@"where: %@", where);
+        NSString *order = [self queryPartOrderBy];
+        NSString *querySt = [NSString stringWithFormat:@"SELECT %@ FROM search as s %@ %@;",
+                             [self queryPartSelectFields],
+                             where.length? [NSString stringWithFormat:@"WHERE %@", where]:@"",
+                             order];
         
-        
-        if (hasValue&&hasDate) {  //if query has both value and date
-            querySt = [NSString stringWithFormat:@"\
-                       SELECT s.type, s.id, s.desc, s.value, s.date, s.currency, bm25(search) \
-                       FROM search as s \
-                       WHERE s.desc MATCH \'%@\'\
-                       AND s.value BETWEEN \'%@\' AND \'%@\'\
-                       AND s.date BETWEEN \'%@\' AND \'%@\'\
-                       and s.currency = \'%@\'\
-                       ORDER BY bm25(search);", query.desc, query.first_value, query.second_value, query.first_date, query.second_date, query.currency];
-        } else if (hasValue&&!hasDate) { //if query has value but not date
-            querySt = [NSString stringWithFormat:@"\
-                       SELECT s.type, s.id, s.desc, s.value, s.date, s.currency, bm25(search) \
-                       FROM search as s \
-                       WHERE s.desc MATCH \'%@\'\
-                       AND s.value BETWEEN \'%@\' AND \'%@\'\
-                       and s.currency = \'%@\'\
-                       ORDER BY bm25(search);", query.desc, query.first_value, query.second_value,query.currency];
-        } else if (!hasValue&&hasDate) { //if query has date but not value
-            querySt =  [NSString stringWithFormat:@"\
-                        SELECT s.type, s.id, s.desc, s.value, s.date, s.currency, bm25(search) \
-                        FROM search as s \
-                        WHERE s.desc MATCH \'%@\'\
-                        AND s.date BETWEEN \'%@\' AND \'%@\'\
-                        ORDER BY bm25(search);", query.desc,query.first_date, query.second_date];
-        } else { // query if has neither value nor date
-            querySt =  [NSString stringWithFormat:@"\
-                        SELECT s.type, s.id, s.desc, s.value, s.date, s.currency, bm25(search) \
-                        FROM search as s\
-                        WHERE s.desc MATCH \'%@\'\
-                        ORDER BY bm25(search);", query.desc];
-        }
-        
-    } else {
-        if (hasValue&&hasDate) {  //if query has both value and date
-            querySt = [NSString stringWithFormat:@"\
-                       SELECT s.type, s.id, s.desc, s.value, s.date, s.currency, matchinfo(search) \
-                       FROM search as s \
-                       WHERE s.desc MATCH \'%@\'\
-                       AND s.value BETWEEN \'%@\' AND \'%@\'\
-                       AND s.date BETWEEN \'%@\' AND \'%@\'\
-                       AND s.currency = \'%@\';", query.desc, query.first_value, query.second_value, query.first_date, query.second_date, query.currency];
-        } else if (hasValue&&!hasDate) { //if query has value but not date
-            querySt = [NSString stringWithFormat:@"\
-                       SELECT s.type, s.id, s.desc, s.value, s.date, s.currency, matchinfo(search)  \
-                       FROM search as s \
-                       WHERE s.desc MATCH \'%@\'\
-                       AND s.value BETWEEN \'%@\' AND \'%@\'\
-                       AND s.currency = \'%@\';", query.desc, query.first_value, query.second_value,query.currency];
-        } else if (!hasValue&&hasDate) { //if query has date but not value
-            querySt =  [NSString stringWithFormat:@"\
-                        SELECT s.type, s.id, s.desc, s.value, s.date, s.currency, matchinfo(search)  \
-                        FROM search as s \
-                        WHERE s.desc MATCH \'%@\'\
-                        AND s.date BETWEEN \'%@\' AND \'%@\';", query.desc,query.first_date, query.second_date];
-        } else { // query if has neither value nor date
-            querySt =  [NSString stringWithFormat:@"\
-                        SELECT s.type, s.id, s.desc, s.value, s.date, s.currency, matchinfo(search)  \
-                        FROM search as s \
-                        WHERE s.desc MATCH \'%@\';", query.desc];
-        }
-    }
-    
-    
-    const char * sqlQuery = [querySt UTF8String];
-    if (opendb_for_read([self.databasePath UTF8String], &searchdb) == SQLITE_OK) {
-        const char *err;
-        if(sqlite3_prepare_v2(searchdb, sqlQuery, -1, &stmt, &err) == SQLITE_OK) {
-            NSString * type;
-            NSString * ID;
-            NSString * desc;
-            NSString * value;
-            NSString * date;
-            NSString * currency;
-            
-            while(sqlite3_step(stmt) == SQLITE_ROW) {
-                if (![self putDataWithID:0
-                                fromStmt:stmt
-                              intoString:&type]) {
-                    continue;
-                }
-                if (![self putDataWithID:1
-                                fromStmt:stmt
-                              intoString:&ID]) {
-                    continue;
-                }
-                if (![self putDataWithID:2
-                                fromStmt:stmt
-                              intoString:&desc]) {
-                    continue;
-                }
-                if (![self putDataWithID:3
-                                fromStmt:stmt
-                              intoString:&value]) {
-                    continue;
-                }
-                if (![self putDataWithID:4
-                                fromStmt:stmt
-                              intoString:&date]) {
-                    continue;
-                }
-                if (![self putDataWithID:5
-                                fromStmt:stmt
-                              intoString:&currency]) {
-                    continue;
-                }
-                double rank = -1.0f*sqlite3_column_double(stmt, 7);
-                id retObj;
-                FTSItem * item;
-                item = [[FTSItem alloc] initItemWithType:type
-                                                      ID:ID
-                                                  topics:[NSArray arrayWithObjects:[NSString stringWithFormat:@"%.3f", rank], nil]
-                                                    desc:desc
-                                                   value:[value floatValue]
-                                                    date:[self dateBackReformatWithDate:date]
-                                                currency:currency
-                                                  object:retObj];
+        const char * sqlQuery = [querySt UTF8String];
+        if (opendb_for_read([self.databasePath UTF8String], &searchdb) == SQLITE_OK) {
+            const char *err;
+            if(sqlite3_prepare_v2(searchdb, sqlQuery, -1, &stmt, &err) == SQLITE_OK) {
+                NSString * type;
+                NSString * ID;
+                NSString * desc;
+                NSString * value;
+                NSString * date;
+                NSString * currency;
                 
-                [resArray addObject:item];
+                while(sqlite3_step(stmt) == SQLITE_ROW) {
+                    if (![self putDataWithID:0
+                                    fromStmt:stmt
+                                  intoString:&type]) {
+                        continue;
+                    }
+                    if (![self putDataWithID:1
+                                    fromStmt:stmt
+                                  intoString:&ID]) {
+                        continue;
+                    }
+                    if (![self putDataWithID:2
+                                    fromStmt:stmt
+                                  intoString:&desc]) {
+                        continue;
+                    }
+                    if (![self putDataWithID:3
+                                    fromStmt:stmt
+                                  intoString:&value]) {
+                        continue;
+                    }
+                    if (![self putDataWithID:4
+                                    fromStmt:stmt
+                                  intoString:&date]) {
+                        continue;
+                    }
+                    if (![self putDataWithID:5
+                                    fromStmt:stmt
+                                  intoString:&currency]) {
+                        continue;
+                    }
+                    double rank = -1.0f*sqlite3_column_double(stmt, 7);
+                    id retObj;
+                    FTSItem * item;
+                    item = [[FTSItem alloc] initItemWithType:type
+                                                          ID:ID
+                                                      topics:[NSArray arrayWithObjects:[NSString stringWithFormat:@"%.3f", rank], nil]
+                                                        desc:desc
+                                                       value:[value floatValue]
+                                                        date:[self dateBackReformatWithDate:date]
+                                                    currency:currency
+                                                      object:retObj];
+                    
+                    [resArray addObject:item];
+                }
+                sqlite3_finalize(stmt);
+                stmt = NULL;
+            } else {
+                [self errorStatement:querySt withError:err];
             }
-            sqlite3_finalize(stmt);
-            stmt = NULL;
-        } else {
-            [self errorStatement:querySt withError:err];
         }
     }
     return resArray.copy;
@@ -820,106 +831,173 @@ static sqlite3 * searchdb = nil;
 
 #pragma mark - Helpers
 
-- (id)unarchiveObjectWithData:(NSData *)data
+- (NSString *)queryPartWhereWithQuery:(FTSQueryItem *)query
 {
-    id object;
-    if (@available(iOS 11.0, *)) {
-        object = [NSKeyedUnarchiver unarchivedObjectOfClass:[NSObject class]
-                                                   fromData:data
-                                                      error:nil];
-    } else {
-        object = [NSKeyedUnarchiver unarchiveObjectWithData:data];
+    NSMutableArray <NSString *> *statements = @[].mutableCopy;
+    if (query.desc.length) {
+        [statements addObject:[NSString stringWithFormat:@"s.desc MATCH \'%@\'", query.desc]];
     }
     
-    return object;
-}
-
-/**
- Сериализует объект в строку. Класс объекта должен поддерживать протокол NSCoding
- 
- @param object экземпляр класс
- @return сериализованный объект
- */
-- (NSString *)serializedStringWithObject:(id)object
-{
-    NSData *objectData;
-    if ([object conformsToProtocol:@protocol(NSCoding)]) {
+    NSString *queryValueStmt = [self queryValueStatementWithQuery:query];
+    if (queryValueStmt) {
+        [statements addObject:queryValueStmt];
+    }
+    
+    NSString *queryPeriodStmt = [self queryPeriodStatementWithQuery:query];
+    if (queryPeriodStmt) {
+        [statements addObject:queryPeriodStmt];
+    }
+    
+    NSMutableString *where = [statements componentsJoinedByString:@" AND "];
+    return where
+    
+    - (NSString  * _Nullable)queryValueStatementWithQuery:(FTSQueryItem *)query
+    {
+        NSString *retValue;
+        BOOL hasFirstValue = ![query.first_value isEqualToString:[NSString stringWithFormat:@"%015.2f", 0.0f]];
+        BOOL hasSecondValue = ![query.second_value isEqualToString:@"inf"];
+        BOOL hasValue = hasFirstValue || hasSecondValue;
+        
+        if (!hasSecondValue) query.second_value = @"999999999999999";
+        
+        if (hasValue) {
+            retValue = [NSString stringWithFormat:@"s.value BETWEEN \'%@\' AND \'%@\'\
+                        AND s.currency = \'%@\'",
+                        query.first_value, query.second_value, query.currency];
+        }
+        
+        return retValue;
+    }
+    
+    - (NSString * _Nullable)queryPeriodStatementWithQuery:(FTSQueryItem *)query
+    {
+        NSString *retValue;
+        BOOL hasFirstDate = query.first_date.length;
+        BOOL hasSecondDate = query.second_date.length;
+        BOOL hasDate = hasFirstDate || hasSecondDate;
+        if (hasDate) {
+            retValue = [NSString stringWithFormat:@"s.date BETWEEN \'%@\' AND \'%@\'", query.first_date, query.second_date];
+        }
+        
+        return retValue;
+    }
+    
+    - (NSString *)queryPartOrderBy
+    {
+        if (@available(iOS 11, *)) {
+            return @"ORDER BY bm25(search)";
+        }
+        return @"";
+    }
+    
+    - (NSString *)queryPartSelectFields
+    {
+        if (@available(iOS 11, *)) {
+            return @"s.type, s.id, s.desc, s.value, s.date, s.currency, bm25(search)";
+        }
+        return @"s.type, s.id, s.desc, s.value, s.date, s.currency, matchinfo(search)";
+    }
+    
+    - (id)unarchiveObjectWithData:(NSData *)data
+    {
+        id object;
         if (@available(iOS 11.0, *)) {
-            objectData = [NSKeyedArchiver archivedDataWithRootObject:object
-                                               requiringSecureCoding:YES
-                                                               error:nil];
-            
+            object = [NSKeyedUnarchiver unarchivedObjectOfClass:[NSObject class]
+                                                       fromData:data
+                                                          error:nil];
         } else {
-            objectData = [NSKeyedArchiver archivedDataWithRootObject:object];
+            object = [NSKeyedUnarchiver unarchiveObjectWithData:data];
         }
-    } else {
-        NSLog(@"Error on indexing object of class %@, \n Object doesn't conforms to protocol: NSCoding", NSStringFromClass([object class]));
-        @throw NSInternalInconsistencyException;
+        
+        return object;
     }
     
-    NSString *serialized = [objectData base64EncodedStringWithOptions:0];
-    return serialized;
-}
-
-- (NSData *)serializedDataWithObject:(id)object
-{
-    NSData *objectData;
-    if ([object conformsToProtocol:@protocol(NSCoding)]) {
-        if (@available(iOS 11.0, *)) {
-                   objectData = [NSKeyedArchiver archivedDataWithRootObject:object
-                                                      requiringSecureCoding:YES
-                                                                     error:nil];
-            
+    /**
+     Сериализует объект в строку. Класс объекта должен поддерживать протокол NSCoding
+     
+     @param object экземпляр класс
+     @return сериализованный объект
+     */
+    - (NSString *)serializedStringWithObject:(id)object
+    {
+        NSData *objectData;
+        if ([object conformsToProtocol:@protocol(NSCoding)]) {
+            if (@available(iOS 11.0, *)) {
+                objectData = [NSKeyedArchiver archivedDataWithRootObject:object
+                                                   requiringSecureCoding:YES
+                                                                   error:nil];
+                
+            } else {
+                objectData = [NSKeyedArchiver archivedDataWithRootObject:object];
+            }
         } else {
-                   objectData = [NSKeyedArchiver archivedDataWithRootObject:object];
+            NSLog(@"Error on indexing object of class %@, \n Object doesn't conforms to protocol: NSCoding", NSStringFromClass([object class]));
+            @throw NSInternalInconsistencyException;
         }
-    } else {
-        NSLog(@"Error on indexing object of class %@, \n Object doesn't conforms to protocol: NSCoding", NSStringFromClass([object class]));
-        @throw NSInternalInconsistencyException;
+        
+        NSString *serialized = [objectData base64EncodedStringWithOptions:0];
+        return serialized;
     }
     
-    return objectData;
-}
-
-- (NSData *)objectDataWithID:(NSString *)ID andType:(NSString *)type
-{
-    sqlite3_stmt * _stmt;
-    char * errMsg;
-    NSData *object;
-    NSString *querySt =  [NSString stringWithFormat:@"\
-                          SELECT o.object \
-                          FROM objects as o \
-                          WHERE o.type = \"%@\" \
-                          AND o.id = \"%@\";", type, ID];
-    
-    const char * sqlQuery = [querySt UTF8String];
-    if(sqlite3_prepare_v2(searchdb, sqlQuery, -1, &_stmt, &errMsg) != SQLITE_OK) {
-        [self errorStatement:querySt withError:errMsg];
-    } else {
-        if (sqlite3_step(_stmt) == SQLITE_ROW) {
-            object = [NSData dataWithBytes:sqlite3_column_blob(_stmt, 0) length:sqlite3_column_bytes(_stmt, 0)];
+    - (NSData *)serializedDataWithObject:(id)object
+    {
+        NSData *objectData;
+        if ([object conformsToProtocol:@protocol(NSCoding)]) {
+            if (@available(iOS 11.0, *)) {
+                objectData = [NSKeyedArchiver archivedDataWithRootObject:object
+                                                   requiringSecureCoding:YES
+                                                                   error:nil];
+                
+            } else {
+                objectData = [NSKeyedArchiver archivedDataWithRootObject:object];
+            }
+        } else {
+            NSLog(@"Error on indexing object of class %@, \n Object doesn't conforms to protocol: NSCoding", NSStringFromClass([object class]));
+            @throw NSInternalInconsistencyException;
         }
+        
+        return objectData;
     }
-    sqlite3_finalize(_stmt);
-    _stmt = NULL;
-    return object;
-}
-
-- (void)errorStatement:(NSString *)statement withError:(const char *)error
-{
-    NSLog(@"DB statement:<%@> error:<%@>", statement, [[NSString alloc] initWithUTF8String:error? : sqlite3_errmsg(searchdb)]);
-}
-
-- (NSTimeInterval)logTimeStartDesc:(NSString *)desc
-{
-    NSTimeInterval ti = [NSDate.date timeIntervalSince1970];
-    NSLog(@"time log [%@] start", desc);
-    return ti;
-}
-
-- (void)logTimeStopDesc:(NSString *)desc startTime:(NSTimeInterval)ti
-{
-    NSLog(@"time log [%@] stop duration:[%@]", desc, @([NSDate.date timeIntervalSince1970] - ti));
-}
-
-@end
+    
+    - (NSData *)objectDataWithID:(NSString *)ID andType:(NSString *)type
+    {
+        sqlite3_stmt * _stmt;
+        char * errMsg;
+        NSData *object;
+        NSString *querySt =  [NSString stringWithFormat:@"\
+                              SELECT o.object \
+                              FROM objects as o \
+                              WHERE o.type = \"%@\" \
+                              AND o.id = \"%@\";", type, ID];
+        
+        const char * sqlQuery = [querySt UTF8String];
+        if(sqlite3_prepare_v2(searchdb, sqlQuery, -1, &_stmt, &errMsg) != SQLITE_OK) {
+            [self errorStatement:querySt withError:errMsg];
+        } else {
+            if (sqlite3_step(_stmt) == SQLITE_ROW) {
+                object = [NSData dataWithBytes:sqlite3_column_blob(_stmt, 0) length:sqlite3_column_bytes(_stmt, 0)];
+            }
+        }
+        sqlite3_finalize(_stmt);
+        _stmt = NULL;
+        return object;
+    }
+    
+    - (void)errorStatement:(NSString *)statement withError:(const char *)error
+    {
+        NSLog(@"DB statement:<%@> error:<%@>", statement, [[NSString alloc] initWithUTF8String:error? : sqlite3_errmsg(searchdb)]);
+    }
+    
+    - (NSTimeInterval)logTimeStartDesc:(NSString *)desc
+    {
+        NSTimeInterval ti = [NSDate.date timeIntervalSince1970];
+        NSLog(@"time log [%@] start", desc);
+        return ti;
+    }
+    
+    - (void)logTimeStopDesc:(NSString *)desc startTime:(NSTimeInterval)ti
+    {
+        NSLog(@"time log [%@] stop duration:[%@]", desc, @([NSDate.date timeIntervalSince1970] - ti));
+    }
+    
+    @end
