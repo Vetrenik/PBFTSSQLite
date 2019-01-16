@@ -849,155 +849,156 @@ static sqlite3 * searchdb = nil;
     }
     
     NSMutableString *where = [statements componentsJoinedByString:@" AND "];
-    return where
+    return where;
+}
+
+- (NSString  * _Nullable)queryValueStatementWithQuery:(FTSQueryItem *)query
+{
+    NSString *retValue;
+    BOOL hasFirstValue = ![query.first_value isEqualToString:[NSString stringWithFormat:@"%015.2f", 0.0f]];
+    BOOL hasSecondValue = ![query.second_value isEqualToString:@"inf"];
+    BOOL hasValue = hasFirstValue || hasSecondValue;
     
-    - (NSString  * _Nullable)queryValueStatementWithQuery:(FTSQueryItem *)query
-    {
-        NSString *retValue;
-        BOOL hasFirstValue = ![query.first_value isEqualToString:[NSString stringWithFormat:@"%015.2f", 0.0f]];
-        BOOL hasSecondValue = ![query.second_value isEqualToString:@"inf"];
-        BOOL hasValue = hasFirstValue || hasSecondValue;
-        
-        if (!hasSecondValue) query.second_value = @"999999999999999";
-        
-        if (hasValue) {
-            retValue = [NSString stringWithFormat:@"s.value BETWEEN \'%@\' AND \'%@\'\
-                        AND s.currency = \'%@\'",
-                        query.first_value, query.second_value, query.currency];
-        }
-        
-        return retValue;
+    if (!hasSecondValue) query.second_value = @"999999999999999";
+    
+    if (hasValue) {
+        retValue = [NSString stringWithFormat:@"s.value BETWEEN \'%@\' AND \'%@\'\
+                    AND s.currency = \'%@\'",
+                    query.first_value, query.second_value, query.currency];
     }
     
-    - (NSString * _Nullable)queryPeriodStatementWithQuery:(FTSQueryItem *)query
-    {
-        NSString *retValue;
-        BOOL hasFirstDate = query.first_date.length;
-        BOOL hasSecondDate = query.second_date.length;
-        BOOL hasDate = hasFirstDate || hasSecondDate;
-        if (hasDate) {
-            retValue = [NSString stringWithFormat:@"s.date BETWEEN \'%@\' AND \'%@\'", query.first_date, query.second_date];
-        }
-        
-        return retValue;
+    return retValue;
+}
+
+- (NSString * _Nullable)queryPeriodStatementWithQuery:(FTSQueryItem *)query
+{
+    NSString *retValue;
+    BOOL hasFirstDate = query.first_date.length;
+    BOOL hasSecondDate = query.second_date.length;
+    BOOL hasDate = hasFirstDate || hasSecondDate;
+    if (hasDate) {
+        retValue = [NSString stringWithFormat:@"s.date BETWEEN \'%@\' AND \'%@\'", query.first_date, query.second_date];
     }
     
-    - (NSString *)queryPartOrderBy
-    {
-        if (@available(iOS 11, *)) {
-            return @"ORDER BY bm25(search)";
-        }
-        return @"";
+    return retValue;
+}
+
+- (NSString *)queryPartOrderBy
+{
+    if (@available(iOS 11, *)) {
+        return @"ORDER BY bm25(search)";
+    }
+    return @"";
+}
+
+- (NSString *)queryPartSelectFields
+{
+    if (@available(iOS 11, *)) {
+        return @"s.type, s.id, s.desc, s.value, s.date, s.currency, bm25(search)";
+    }
+    return @"s.type, s.id, s.desc, s.value, s.date, s.currency, matchinfo(search)";
+}
+
+- (id)unarchiveObjectWithData:(NSData *)data
+{
+    id object;
+    if (@available(iOS 11.0, *)) {
+        object = [NSKeyedUnarchiver unarchivedObjectOfClass:[NSObject class]
+                                                   fromData:data
+                                                      error:nil];
+    } else {
+        object = [NSKeyedUnarchiver unarchiveObjectWithData:data];
     }
     
-    - (NSString *)queryPartSelectFields
-    {
-        if (@available(iOS 11, *)) {
-            return @"s.type, s.id, s.desc, s.value, s.date, s.currency, bm25(search)";
-        }
-        return @"s.type, s.id, s.desc, s.value, s.date, s.currency, matchinfo(search)";
-    }
-    
-    - (id)unarchiveObjectWithData:(NSData *)data
-    {
-        id object;
+    return object;
+}
+
+/**
+ Сериализует объект в строку. Класс объекта должен поддерживать протокол NSCoding
+ 
+ @param object экземпляр класс
+ @return сериализованный объект
+ */
+- (NSString *)serializedStringWithObject:(id)object
+{
+    NSData *objectData;
+    if ([object conformsToProtocol:@protocol(NSCoding)]) {
         if (@available(iOS 11.0, *)) {
-            object = [NSKeyedUnarchiver unarchivedObjectOfClass:[NSObject class]
-                                                       fromData:data
-                                                          error:nil];
+            objectData = [NSKeyedArchiver archivedDataWithRootObject:object
+                                               requiringSecureCoding:YES
+                                                               error:nil];
+            
         } else {
-            object = [NSKeyedUnarchiver unarchiveObjectWithData:data];
+            objectData = [NSKeyedArchiver archivedDataWithRootObject:object];
         }
-        
-        return object;
+    } else {
+        NSLog(@"Error on indexing object of class %@, \n Object doesn't conforms to protocol: NSCoding", NSStringFromClass([object class]));
+        @throw NSInternalInconsistencyException;
     }
     
-    /**
-     Сериализует объект в строку. Класс объекта должен поддерживать протокол NSCoding
-     
-     @param object экземпляр класс
-     @return сериализованный объект
-     */
-    - (NSString *)serializedStringWithObject:(id)object
-    {
-        NSData *objectData;
-        if ([object conformsToProtocol:@protocol(NSCoding)]) {
-            if (@available(iOS 11.0, *)) {
-                objectData = [NSKeyedArchiver archivedDataWithRootObject:object
-                                                   requiringSecureCoding:YES
-                                                                   error:nil];
-                
-            } else {
-                objectData = [NSKeyedArchiver archivedDataWithRootObject:object];
-            }
+    NSString *serialized = [objectData base64EncodedStringWithOptions:0];
+    return serialized;
+}
+
+- (NSData *)serializedDataWithObject:(id)object
+{
+    NSData *objectData;
+    if ([object conformsToProtocol:@protocol(NSCoding)]) {
+        if (@available(iOS 11.0, *)) {
+            objectData = [NSKeyedArchiver archivedDataWithRootObject:object
+                                               requiringSecureCoding:YES
+                                                               error:nil];
+            
         } else {
-            NSLog(@"Error on indexing object of class %@, \n Object doesn't conforms to protocol: NSCoding", NSStringFromClass([object class]));
-            @throw NSInternalInconsistencyException;
+            objectData = [NSKeyedArchiver archivedDataWithRootObject:object];
         }
-        
-        NSString *serialized = [objectData base64EncodedStringWithOptions:0];
-        return serialized;
+    } else {
+        NSLog(@"Error on indexing object of class %@, \n Object doesn't conforms to protocol: NSCoding", NSStringFromClass([object class]));
+        @throw NSInternalInconsistencyException;
     }
     
-    - (NSData *)serializedDataWithObject:(id)object
-    {
-        NSData *objectData;
-        if ([object conformsToProtocol:@protocol(NSCoding)]) {
-            if (@available(iOS 11.0, *)) {
-                objectData = [NSKeyedArchiver archivedDataWithRootObject:object
-                                                   requiringSecureCoding:YES
-                                                                   error:nil];
-                
-            } else {
-                objectData = [NSKeyedArchiver archivedDataWithRootObject:object];
-            }
-        } else {
-            NSLog(@"Error on indexing object of class %@, \n Object doesn't conforms to protocol: NSCoding", NSStringFromClass([object class]));
-            @throw NSInternalInconsistencyException;
+    return objectData;
+}
+
+- (NSData *)objectDataWithID:(NSString *)ID andType:(NSString *)type
+{
+    sqlite3_stmt * _stmt;
+    char * errMsg;
+    NSData *object;
+    NSString *querySt =  [NSString stringWithFormat:@"\
+                          SELECT o.object \
+                          FROM objects as o \
+                          WHERE o.type = \"%@\" \
+                          AND o.id = \"%@\";", type, ID];
+    
+    const char * sqlQuery = [querySt UTF8String];
+    if(sqlite3_prepare_v2(searchdb, sqlQuery, -1, &_stmt, &errMsg) != SQLITE_OK) {
+        [self errorStatement:querySt withError:errMsg];
+    } else {
+        if (sqlite3_step(_stmt) == SQLITE_ROW) {
+            object = [NSData dataWithBytes:sqlite3_column_blob(_stmt, 0) length:sqlite3_column_bytes(_stmt, 0)];
         }
-        
-        return objectData;
     }
-    
-    - (NSData *)objectDataWithID:(NSString *)ID andType:(NSString *)type
-    {
-        sqlite3_stmt * _stmt;
-        char * errMsg;
-        NSData *object;
-        NSString *querySt =  [NSString stringWithFormat:@"\
-                              SELECT o.object \
-                              FROM objects as o \
-                              WHERE o.type = \"%@\" \
-                              AND o.id = \"%@\";", type, ID];
-        
-        const char * sqlQuery = [querySt UTF8String];
-        if(sqlite3_prepare_v2(searchdb, sqlQuery, -1, &_stmt, &errMsg) != SQLITE_OK) {
-            [self errorStatement:querySt withError:errMsg];
-        } else {
-            if (sqlite3_step(_stmt) == SQLITE_ROW) {
-                object = [NSData dataWithBytes:sqlite3_column_blob(_stmt, 0) length:sqlite3_column_bytes(_stmt, 0)];
-            }
-        }
-        sqlite3_finalize(_stmt);
-        _stmt = NULL;
-        return object;
-    }
-    
-    - (void)errorStatement:(NSString *)statement withError:(const char *)error
-    {
-        NSLog(@"DB statement:<%@> error:<%@>", statement, [[NSString alloc] initWithUTF8String:error? : sqlite3_errmsg(searchdb)]);
-    }
-    
-    - (NSTimeInterval)logTimeStartDesc:(NSString *)desc
-    {
-        NSTimeInterval ti = [NSDate.date timeIntervalSince1970];
-        NSLog(@"time log [%@] start", desc);
-        return ti;
-    }
-    
-    - (void)logTimeStopDesc:(NSString *)desc startTime:(NSTimeInterval)ti
-    {
-        NSLog(@"time log [%@] stop duration:[%@]", desc, @([NSDate.date timeIntervalSince1970] - ti));
-    }
-    
-    @end
+    sqlite3_finalize(_stmt);
+    _stmt = NULL;
+    return object;
+}
+
+- (void)errorStatement:(NSString *)statement withError:(const char *)error
+{
+    NSLog(@"DB statement:<%@> error:<%@>", statement, [[NSString alloc] initWithUTF8String:error? : sqlite3_errmsg(searchdb)]);
+}
+
+- (NSTimeInterval)logTimeStartDesc:(NSString *)desc
+{
+    NSTimeInterval ti = [NSDate.date timeIntervalSince1970];
+    NSLog(@"time log [%@] start", desc);
+    return ti;
+}
+
+- (void)logTimeStopDesc:(NSString *)desc startTime:(NSTimeInterval)ti
+{
+    NSLog(@"time log [%@] stop duration:[%@]", desc, @([NSDate.date timeIntervalSince1970] - ti));
+}
+
+@end
