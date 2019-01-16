@@ -12,7 +12,7 @@
 @implementation FTSSearchParameters
 
 -(instancetype)  initSearchParametersWithBufs:(FTSBufsContainer *)bufs
-                                           inputed:(NSString *)inputed {
+                                      inputed:(NSString *)inputed {
     if([inputed isEqualToString:@""]){
         _query = @"";
         _currency = @"";
@@ -34,11 +34,11 @@
         NSMutableArray* normalized = [self normalizeValuesWithWords:[norm componentsSeparatedByString: @" "].mutableCopy smallCur:@"коп" mainCurs:[NSArray arrayWithObjects:@"руб",nil].mutableCopy bufs:bufs];
         
         normalized = [self normalizeValuesWithWords:normalized
-                                                             smallCur:@"цен"
-                                                              mainCurs:[NSArray arrayWithObjects:@"дол", @"евр",nil].mutableCopy
-                                                            bufs:bufs];
+                                           smallCur:@"цен"
+                                           mainCurs:[NSArray arrayWithObjects:@"дол", @"евр",nil].mutableCopy
+                                               bufs:bufs];
         NSMutableString* buf = [self getSumWithWords:normalized
-                                                             bufs:bufs].mutableCopy;
+                                                bufs:bufs].mutableCopy;
         
         
         if (![buf isEqualToString:@""]) {
@@ -87,7 +87,7 @@
         
         NSMutableString* result = @"".mutableCopy;
         
-        NSArray* deleting = [NSArray arrayWithObjects:@"последних", @"период",nil].mutableCopy; //"за", "и", "до", "от", "на", "с", "по"
+        NSArray* deleting = [NSArray arrayWithObjects:@"последних", @"период", @"с", @"от", @"до", @"по", @"после", @"перед", @"за", @"на", @"и", @"от", @"ранее", @"раньше", @"позднее", @"позже", @"больше", @"меньше", @"более", @"менее", @"чем",nil].mutableCopy; //"за", "и", "до", "от", "на", "с", "по"
         for (int i = 0; i < [normalized count]; i++) {
             for (NSString* item in deleting) {
                 if ([normalized[i] isEqualToString:item]) {
@@ -110,7 +110,7 @@
 -(NSMutableString*) normalizeCurrencyWithQuery:(NSString *)query
                                       smallCur:(NSString *)smallCur
                                        mainCur:(NSString *)mainCur
-                                     bufs:(FTSBufsContainer *)bufs {
+                                          bufs:(FTSBufsContainer *)bufs {
     
     NSNumberFormatter *numFormatter = [[NSNumberFormatter alloc] init];
     [numFormatter setUsesGroupingSeparator:YES];
@@ -272,9 +272,9 @@
 }
 
 -(NSMutableArray*) normalizeValuesWithWords:(NSMutableArray*)words
-                                         smallCur:(NSString*)smallCur
-                                          mainCurs:(NSArray*)mainCurs
-                                        bufs:(FTSBufsContainer *)bufs {
+                                   smallCur:(NSString*)smallCur
+                                   mainCurs:(NSArray*)mainCurs
+                                       bufs:(FTSBufsContainer *)bufs {
     
     int rubcounter = 0;
     for (int i = 0; i < [words count]; i++) {
@@ -298,12 +298,12 @@
 }
 
 -(void) weekDayprocWithI:(int)i
-        words:(NSMutableArray*)words
+                   words:(NSMutableArray*)words
                dayNumber:(int)dayNumber
-          bufs:(FTSBufsContainer *)bufs
-     isSingleTermPeriod:(BOOL)isSingleTermPeriod
-                isFirst:(BOOL)isFirst {
-
+                    bufs:(FTSBufsContainer *)bufs
+      isSingleTermPeriod:(BOOL)isSingleTermPeriod
+                 isFirst:(BOOL)isFirst {
+    
     [bufs cleanUpWordsWithIndex:i];
     int b = [self howManyDaysWithDay:dayNumber isFirst:isFirst];
     NSDateFormatter* dateFormat = [[NSDateFormatter alloc] init];
@@ -316,7 +316,7 @@
     components.day = 0;
     if(isSingleTermPeriod){
         
-        if(isFirst) {
+        if(isFirst && i > 0) {
             if (([@[@"до", @"ранее", @"раньше"] containsObject:words[i - 1]]) || (i > 1 && [@[@"до", @"ранее", @"раньше"] containsObject:words[i - 2]])) {
                 [_first_date appendString:@"01/01/1970 00:00"];
                 [_second_date appendString:timet];
@@ -348,11 +348,11 @@
 }
 
 -(void) specificDayprocWithI:(int)i
-            words:(NSMutableArray*)words
+                       words:(NSMutableArray*)words
                    dayNumber:(int)dayNumber
-              bufs:(FTSBufsContainer*)bufs
-         isSingleTermPeriod:(BOOL)isSingleTermPeriod
-                    isFirst:(BOOL)isFirst {
+                        bufs:(FTSBufsContainer*)bufs
+          isSingleTermPeriod:(BOOL)isSingleTermPeriod
+                     isFirst:(BOOL)isFirst {
     
     [bufs cleanUpWordsWithIndex:i];
     
@@ -402,12 +402,12 @@
 }
 
 -(void) monthProcWithI:(int)i
-      words:(NSMutableArray *)words
+                 words:(NSMutableArray *)words
                      k:(int)k
-               MM:(NSString *)MM
-        bufs:(FTSBufsContainer *)bufs
-   isSingleTermPeriod:(BOOL)isSingleTermPeriod
-              isFirst:(BOOL)isFirst {
+                    MM:(NSString *)MM
+                  bufs:(FTSBufsContainer *)bufs
+    isSingleTermPeriod:(BOOL)isSingleTermPeriod
+               isFirst:(BOOL)isFirst {
     
     NSNumberFormatter* nf = [[NSNumberFormatter alloc] init];
     nf.numberStyle = NSNumberFormatterDecimalStyle;
@@ -606,7 +606,7 @@
                 }
             }
             
-            if (isSingleTermPeriod && ([@[@"после", @"позже", @"позднее", @"от"] containsObject:words[i - 1]] || (i > 1 && (isParsedDay && [@[@"после", @"позже", @"позднее", @"от"] containsObject:words[i - 2]])))) {
+            if (isSingleTermPeriod && ([@[@"после", @"позже", @"позднее", @"от", @"с"] containsObject:words[i - 1]] || (i > 1 && (isParsedDay && [@[@"после", @"позже", @"позднее", @"от", @"с"] containsObject:words[i - 2]])))) {
                 // просто после 15 января (день распарсили)
                 if (dayFirst < 10) {
                     [_first_date appendString:@"0"];
@@ -746,7 +746,7 @@
                     }
                     NSDateComponents *comps = [[NSDateComponents alloc] init];
                     
-                    if (bufindex > 0) {
+                    if (bufindex > 0 && bufindex < words.count) {
                         checker = [nf numberFromString:words[bufindex]];
                         if (checker != nil) {
                             [comps setYear:yearFirst];
@@ -1044,7 +1044,7 @@
 }
 
 -(int) howManyDaysWithDay:(int)day
-                 isFirst:(BOOL)isFirst {
+                  isFirst:(BOOL)isFirst {
     NSDateFormatter* dateFormat = [[NSDateFormatter alloc] init];
     [dateFormat setDateFormat:@"EEE"];
     NSString* today = [dateFormat stringFromDate:[NSDate date]];
@@ -1085,14 +1085,16 @@
 }
 
 -(NSMutableString*) getDatePeriodWithWords:(NSMutableArray *)words
-                                       bufs:(FTSBufsContainer *)bufs {
+                                      bufs:(FTSBufsContainer *)bufs {
     int multipleTerms = 0;
     int firstIndex = 0;
     BOOL isSingleTermPeriod = NO;
     int k = -1;
     for (int i = 0; i < [words count]; i++) {
-        if(bufs.termIdentifier[words[i]] != nil) {
-            k = [bufs.termIdentifier[words[i]] intValue];
+        
+        id termValue = [self objectForNearlyKey:words[i] withDictionary:bufs.termIdentifier];
+        if(termValue != nil) {
+            k = [termValue intValue];
             if (k <= 12 || k >=18) {
                 multipleTerms++;
                 if (firstIndex == 0) {
@@ -1123,8 +1125,9 @@
     [components setYear:0];
     
     for (int i = 0; i < [words count]; i++) {
-        if(bufs.termIdentifier[words[i]] != nil) {
-            k = [bufs.termIdentifier[words[i]] intValue];
+        id termValue = [self objectForNearlyKey:words[i] withDictionary:bufs.termIdentifier];
+        if(termValue != nil) {
+            k = [termValue intValue];
         } else {
             k = -1;
         }
@@ -1503,92 +1506,92 @@
             }
             case 18: { // сегодня +
                 [self specificDayprocWithI:i
-                                      words:words
-                                             dayNumber:0
-                                        bufs:bufs
-                                   isSingleTermPeriod:isSingleTermPeriod
-                                              isFirst:firstIndex == i];
+                                     words:words
+                                 dayNumber:0
+                                      bufs:bufs
+                        isSingleTermPeriod:isSingleTermPeriod
+                                   isFirst:firstIndex == i];
                 break;
             }
             case 19: { // вчера +
                 [self specificDayprocWithI:i
-                                      words:words
-                                             dayNumber:-1
-                                        bufs:bufs
-                                   isSingleTermPeriod:isSingleTermPeriod
-                                              isFirst:firstIndex == i];
+                                     words:words
+                                 dayNumber:-1
+                                      bufs:bufs
+                        isSingleTermPeriod:isSingleTermPeriod
+                                   isFirst:firstIndex == i];
                 break;
             }
             case 20: { // позавчера +
                 [self specificDayprocWithI:i
-                                      words:words
-                                             dayNumber:-2
-                                        bufs:bufs
-                                   isSingleTermPeriod:isSingleTermPeriod
-                                              isFirst:firstIndex == i];
+                                     words:words
+                                 dayNumber:-2
+                                      bufs:bufs
+                        isSingleTermPeriod:isSingleTermPeriod
+                                   isFirst:firstIndex == i];
                 break;
             }
             case 21: { // пн +
                 [self weekDayprocWithI:i
-                                  words:words
-                                         dayNumber:k - 20
-                                    bufs:bufs
-                               isSingleTermPeriod:isSingleTermPeriod
-                                          isFirst:firstIndex == i];
+                                 words:words
+                             dayNumber:k - 20
+                                  bufs:bufs
+                    isSingleTermPeriod:isSingleTermPeriod
+                               isFirst:firstIndex == i];
                 break;
             }
             case 22: { // вт +
                 [self weekDayprocWithI:i
-                                  words:words
-                                         dayNumber:k - 20
-                                    bufs:bufs
-                               isSingleTermPeriod:isSingleTermPeriod
-                                          isFirst:firstIndex == i];
+                                 words:words
+                             dayNumber:k - 20
+                                  bufs:bufs
+                    isSingleTermPeriod:isSingleTermPeriod
+                               isFirst:firstIndex == i];
                 break;
             }
             case 23: { // ср +
                 [self weekDayprocWithI:i
-                                  words:words
-                                         dayNumber:k - 20
-                                    bufs:bufs
-                               isSingleTermPeriod:isSingleTermPeriod
-                                          isFirst:firstIndex == i];
+                                 words:words
+                             dayNumber:k - 20
+                                  bufs:bufs
+                    isSingleTermPeriod:isSingleTermPeriod
+                               isFirst:firstIndex == i];
                 break;
             }
             case 24: { // чт +
                 [self weekDayprocWithI:i
-                                  words:words
-                                         dayNumber:k - 20
-                                    bufs:bufs
-                               isSingleTermPeriod:isSingleTermPeriod
-                                          isFirst:firstIndex == i];
+                                 words:words
+                             dayNumber:k - 20
+                                  bufs:bufs
+                    isSingleTermPeriod:isSingleTermPeriod
+                               isFirst:firstIndex == i];
                 break;
             }
             case 25: { // пт +
                 [self weekDayprocWithI:i
-                                  words:words
-                                         dayNumber:k - 20
-                                    bufs:bufs
-                               isSingleTermPeriod:isSingleTermPeriod
-                                          isFirst:firstIndex == i];
+                                 words:words
+                             dayNumber:k - 20
+                                  bufs:bufs
+                    isSingleTermPeriod:isSingleTermPeriod
+                               isFirst:firstIndex == i];
                 break;
             }
             case 26: { // сб +
                 [self weekDayprocWithI:i
-                                  words:words
-                                         dayNumber:k - 20
-                                    bufs:bufs
-                               isSingleTermPeriod:isSingleTermPeriod
-                                          isFirst:firstIndex == i];
+                                 words:words
+                             dayNumber:k - 20
+                                  bufs:bufs
+                    isSingleTermPeriod:isSingleTermPeriod
+                               isFirst:firstIndex == i];
                 break;
             }
             case 27: { // вс +
                 [self weekDayprocWithI:i
-                                  words:words
-                                         dayNumber:k - 20
-                                    bufs:bufs
-                               isSingleTermPeriod:isSingleTermPeriod
-                                          isFirst:firstIndex == i];
+                                 words:words
+                             dayNumber:k - 20
+                                  bufs:bufs
+                    isSingleTermPeriod:isSingleTermPeriod
+                               isFirst:firstIndex == i];
                 break;
             }
             default:
@@ -1605,14 +1608,14 @@
 }
 
 -(BOOL) partialEqualsWithTarget:(NSArray*)target
-                     obj:(NSString*)obj {
+                            obj:(NSString*)obj {
     if([target containsObject:obj])
         return YES;
     return NO;
 }
 
 -(int) getNearestFloatIndexWithWords:(NSMutableArray *)words
-                                              j:(int)j {
+                                   j:(int)j {
     NSScanner* sc;
     float ff;
     for(int i = j; i < [words count]; i++) {
@@ -1624,7 +1627,7 @@
 }
 
 -(NSString*) getSumWithWords:(NSMutableArray *)words
-                         bufs:(FTSBufsContainer *)bufs {
+                        bufs:(FTSBufsContainer *)bufs {
     
     float ff;
     
@@ -1849,6 +1852,18 @@
         return 9;
     }
     return 0;
+}
+
+- (id)objectForNearlyKey:(NSString *)string withDictionary:(NSDictionary *)dic
+{
+    __block id retObj;
+    [dic enumerateKeysAndObjectsUsingBlock:^(NSString * _Nonnull key, id  _Nonnull obj, BOOL * _Nonnull stop) {
+        if (string.length > 2 && [key hasPrefix:string]) {
+            retObj = obj;
+        }
+        *stop = retObj != nil;
+    }];
+    return retObj;
 }
 
 @end

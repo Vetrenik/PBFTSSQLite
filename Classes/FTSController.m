@@ -866,12 +866,12 @@ static sqlite3 * searchdb = nil;
     NSData *objectData;
     if ([object conformsToProtocol:@protocol(NSCoding)]) {
         if (@available(iOS 11.0, *)) {
-            objectData = [NSKeyedArchiver archivedDataWithRootObject:object
-                                               requiringSecureCoding:YES
-                                                               error:nil];
+            //       objectData = [NSKeyedArchiver archivedDataWithRootObject:object
+            //                                          requiringSecureCoding:YES
+            //                                                         error:nil];
             
         } else {
-            objectData = [NSKeyedArchiver archivedDataWithRootObject:object];
+            //       objectData = [NSKeyedArchiver archivedDataWithRootObject:object];
         }
     } else {
         NSLog(@"Error on indexing object of class %@, \n Object doesn't conforms to protocol: NSCoding", NSStringFromClass([object class]));
